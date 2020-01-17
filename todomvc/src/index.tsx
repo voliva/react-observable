@@ -2,7 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import 'todomvc-app-css/index.css'
 // import App from './App';
-import { createReducerStore, createActionCreator, connectStore, Provider, useStoreState, useDispatch, createSelector } from './react-observable';
+import { createReducerStore, createActionCreator, connectStore, Provider, useSelector, useDispatch, createSelector } from './react-observable';
+import { Observable } from 'rxjs';
 
 const addA = createActionCreator(Symbol('addA'), (value: number) => ({ value }));
 const [stateA, storeA] = createReducerStore(
@@ -26,7 +27,7 @@ const getAValue = createSelector([stateA], state => {
 const connectedStore = connectStore(storeA);
 
 const App = () => {
-    const state = useStoreState(getAValue);
+    const state = useSelector(getAValue);
     const dispatch = useDispatch();
 
     const handleClick = () => dispatch(addA(1));

@@ -1,6 +1,6 @@
 import { Observable, Subject, ReplaySubject, BehaviorSubject, combineLatest, EMPTY } from "rxjs";
 import { scan, distinctUntilChanged, map } from 'rxjs/operators';
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 
 export interface Action {
     type: symbol;
@@ -44,6 +44,8 @@ type Store = (
 type ImmediateObservable<T> = Observable<T> & {
     getValue: () => T
 };
+type Selector<T> = () => ImmediateObservable<T>;
+type ParametricSelector<P, T> = (prop$: ImmediateObservable<P>) => ImmediateObservable<T>;
 
 export function createStore<T>(
     initialState: T,
@@ -66,8 +68,9 @@ export function createStore<T>(
             getValue: () => stateSubject.value
         }
     );
+    const stateSelector: Selector<T> = () => stateObservable;
 
-    return [stateObservable, store] as [typeof stateObservable, Store];
+    return [stateSelector, store] as [typeof stateSelector, Store];
 }
 
 export function createReducerStore<T>(
@@ -85,22 +88,62 @@ export function createReducerStore<T>(
     );
 }
 
+// export function createSelector<T, R1>(
+//     deps: [Selector<R1>],
+//     computeFn: (dep1: R1) => T
+// ): Selector<T>;
+// export function createSelector<T, R1, R2>(
+//     deps: [Selector<R1>, Selector<R2>],
+//     computeFn: (dep1: R1, dep2: R2) => T
+// ): Selector<T>;
+export function createSelector<T, P1, R1>(
+    deps: [ParametricSelector<P1, R1>],
+    computeFn: (dep1: R1) => T
+): ParametricSelector<P1, T>;
+export function createSelector<T, P1, R1, P2, R2>(
+    deps: [ParametricSelector<P1, R1>, ParametricSelector<P2, R2>],
+    computeFn: (dep1: R1, dep2: R2) => T
+): ParametricSelector<P1  & P2, T>;
 export function createSelector<T>(
-    deps: ImmediateObservable<any>[],
+    deps: ParametricSelector<any, any>[],
     computeFn: (...args: any) => T
-): ImmediateObservable<T> {
-    const stream = combineLatest(deps).pipe(
-        map(deps => computeFn(...deps))
-    );
+): ParametricSelector<any, T> {
+    return prop$ => {
+        const depStreams = deps.map(dep => dep(prop$));
+        const stream = combineLatest(depStreams).pipe(
+            map(deps => computeFn(...deps)),
+            distinctUntilChanged()
+        );
 
-    return Object.assign(
-        stream,
-        {
-            getValue: () => computeFn(
-                ...deps.map(dep => dep.getValue())
-            )
-        }
-    );
+        return Object.assign(
+            stream,
+            {
+                getValue: () => computeFn(
+                    ...depStreams.map(dep => dep.getValue())
+                )
+            }
+        );
+    }
+}
+
+export function createPropSelector<T, K extends string>(
+    propName: K
+): ParametricSelector<{
+    [key in K]: T
+}, T> {
+    return prop$ => {
+        const stream = prop$.pipe(
+            map(props => props[propName]),
+            distinctUntilChanged()
+        );
+
+        return Object.assign(
+            stream,
+            {
+                getValue: () => prop$.getValue()[propName]
+            }
+        )
+    }
 }
 
 export function combineStores(stores: Store[]): Store {
@@ -122,15 +165,23 @@ const ctx = createContext<ReturnType<typeof connectStore> | undefined>(undefined
 export const Provider = ctx.Provider;
 export const Consumer = ctx.Consumer;
 export const useDispatch = () => useContext(ctx)!;
-export function useStoreState<T>(state$: ImmediateObservable<T>): T;
-export function useStoreState<T>(state$: Observable<T>): T | undefined;
-export function useStoreState<T>(state$: Observable<T> | ImmediateObservable<T>) {
-    const [state, setState] = useState<T | undefined>(() => 'getValue' in state$ ? state$.getValue() : undefined);
+
+export function useSelector<T>(selector: ParametricSelector<undefined | {}, T>): T;
+export function useSelector<P, T>(selector: ParametricSelector<P, T>, props: P): T;
+export function useSelector<P, T>(selector: ParametricSelector<P, T>, props?: P): T {
+    const propSubject = useRef(new BehaviorSubject(props!));
+    const state$ = useRef(selector(propSubject.current));
+
+    const [state, setState] = useState<T>(() => state$.current.getValue());
 
     useEffect(() => {
-        const subscription = state$.subscribe(setState);
+        const subscription = state$.current.subscribe(setState);
         return () => subscription.unsubscribe();
-    }, [state$]);
+    }, []);
+
+    useEffect(() => {
+        propSubject.current.next(props!);
+    });
 
     return state;
 }
