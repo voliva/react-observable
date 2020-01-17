@@ -1,4 +1,4 @@
-import { Observable, Subject, ReplaySubject, BehaviorSubject, combineLatest } from "rxjs";
+import { Observable, Subject, ReplaySubject, BehaviorSubject, combineLatest, EMPTY } from "rxjs";
 import { scan, distinctUntilChanged, map } from 'rxjs/operators';
 import { createContext, useContext, useState, useEffect } from "react";
 
@@ -48,7 +48,7 @@ type ImmediateObservable<T> = Observable<T> & {
 export function createStore<T>(
     initialState: T,
     stateFn: (action$: Observable<Action>) => Observable<T>,
-    effectFn: (action$: Observable<Action>) => Observable<Action>
+    effectFn: (action$: Observable<Action>) => Observable<Action> = () => EMPTY
 ) {
     const stateSubject = new BehaviorSubject(initialState);
     const store: Store = (action$, dispatch) => {
@@ -73,7 +73,7 @@ export function createStore<T>(
 export function createReducerStore<T>(
     initialState: T,
     reducerFn: (state: T, action: Action) => T,
-    effectFn: (action$: Observable<Action>) => Observable<Action>
+    effectFn?: (action$: Observable<Action>) => Observable<Action>
 ) {
     return createStore(
         initialState,
@@ -90,7 +90,7 @@ export function createSelector<T>(
     computeFn: (...args: any) => T
 ): ImmediateObservable<T> {
     const stream = combineLatest(deps).pipe(
-        map(computeFn)
+        map(deps => computeFn(...deps))
     );
 
     return Object.assign(
@@ -121,11 +121,11 @@ export function connectStore(store: Store) {
 const ctx = createContext<ReturnType<typeof connectStore> | undefined>(undefined);
 export const Provider = ctx.Provider;
 export const Consumer = ctx.Consumer;
-export const useDispatch = () => useContext(ctx);
+export const useDispatch = () => useContext(ctx)!;
 export function useStoreState<T>(state$: ImmediateObservable<T>): T;
 export function useStoreState<T>(state$: Observable<T>): T | undefined;
 export function useStoreState<T>(state$: Observable<T> | ImmediateObservable<T>) {
-    const [state, setState] = useState<T | undefined>('getValue' in state$ ? state$.getValue() : undefined);
+    const [state, setState] = useState<T | undefined>(() => 'getValue' in state$ ? state$.getValue() : undefined);
 
     useEffect(() => {
         const subscription = state$.subscribe(setState);
