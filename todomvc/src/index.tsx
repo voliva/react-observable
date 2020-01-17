@@ -1,42 +1,20 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-import 'todomvc-app-css/index.css'
-// import App from './App';
-import { createReducerStore, createActionCreator, connectStore, Provider, useSelector, useDispatch, createSelector } from './react-observable';
-import { Observable } from 'rxjs';
+import React from "react";
+import ReactDOM from "react-dom";
+import "todomvc-app-css/index.css";
+import App from "./App";
+import { combineStores, connectStore, Provider } from "./react-observable";
+import { todosStore } from "./todos";
+import { visibilityFilterStore } from "./visibilityFilter";
 
-const addA = createActionCreator(Symbol('addA'), (value: number) => ({ value }));
-const [stateA, storeA] = createReducerStore(
-    {
-        a: 0
-    },
-    (state, action) => {
-        if(addA.isAction(action)) {
-            return {
-                a: state.a + action.value
-            }
-        }
-        return state;
-    }
+const rootStore = combineStores([
+    todosStore,
+    visibilityFilterStore
+]);
+const connectedStore = connectStore(rootStore);
+
+ReactDOM.render(
+  <Provider value={connectedStore}>
+    <App />
+  </Provider>,
+  document.getElementById("root")
 );
-const getAValue = createSelector([stateA], state => {
-    console.log(state);
-    return state.a as number
-});
-
-const connectedStore = connectStore(storeA);
-
-const App = () => {
-    const state = useSelector(getAValue);
-    const dispatch = useDispatch();
-
-    const handleClick = () => dispatch(addA(1));
-
-    return <div>
-        {state}
-        <br />
-        <button onClick={handleClick}>Add</button>
-    </div>
-}
-
-ReactDOM.render(<Provider value={connectedStore}><App /></Provider>, document.getElementById('root'));

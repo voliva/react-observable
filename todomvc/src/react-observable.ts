@@ -8,32 +8,42 @@ export interface Action {
 type ArgumentTypes<T> = T extends (... args: infer U ) => infer R ? U: never;
 // type ReplaceReturnType<T, TNewReturn> = (...a: ArgumentTypes<T>) => TNewReturn;
 
+type ActionCreator<T extends Array<any>, A extends Action> = ((...args: T) => A) & {
+    actionType: symbol,
+    isCreatorOf: (action: Action) => action is A
+};
 export function createActionCreator<
     TS extends symbol,
     TFn extends (...args: any) => any
 >(
-    s: TS,
-    fn: TFn
+    s: TS | string,
+    fn?: TFn
 ) {
+    fn = fn || (() => {}) as any;
+
+    const type = typeof s === 'string' ? Symbol(s) : s;
+
     type ThisAction = {
-        type: TS
+        type: symbol
     } & ReturnType<TFn>;
 
     const actionCreator = (...args: ArgumentTypes<TFn>): ThisAction => ({
-        type: s,
-        ...fn(...args)
+        type,
+        ...fn!(...args)
     });
 
     const typeCheck = {
-        isAction: (action: Action): action is ThisAction => {
-            return action.type === s
+        actionType: type,
+        isCreatorOf: (action: Action): action is ThisAction => {
+            return action.type === type
         }
     }
 
-    return Object.assign(
+    const ret: ActionCreator<ArgumentTypes<TFn>, ThisAction> = Object.assign(
         actionCreator,
         typeCheck
     );
+    return ret;
 }
 
 type Store = (
@@ -165,6 +175,10 @@ const ctx = createContext<ReturnType<typeof connectStore> | undefined>(undefined
 export const Provider = ctx.Provider;
 export const Consumer = ctx.Consumer;
 export const useDispatch = () => useContext(ctx)!;
+export const useAction = <TArg extends Array<any>, TAction extends Action>(actionCreator: ActionCreator<TArg, TAction>) => {
+    const dispatch = useDispatch();
+    return (...args: TArg) => dispatch(actionCreator(...args));
+}
 
 export function useSelector<T>(selector: ParametricSelector<undefined | {}, T>): T;
 export function useSelector<P, T>(selector: ParametricSelector<P, T>, props: P): T;
