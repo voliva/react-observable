@@ -1,13 +1,21 @@
 import {
-  Observable,
-  Subject,
-  ReplaySubject,
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  FC,
+  createElement,
+  useMemo
+} from "react";
+import {
   BehaviorSubject,
   combineLatest,
-  EMPTY
+  EMPTY,
+  Observable,
+  Subject
 } from "rxjs";
-import { scan, distinctUntilChanged, map } from "rxjs/operators";
-import { createContext, useContext, useState, useEffect, useRef } from "react";
+import { distinctUntilChanged, map, scan } from "rxjs/operators";
 
 export interface Action {
   type: symbol;
@@ -164,18 +172,25 @@ export function combineStores(stores: Store[]): Store {
   };
 }
 
-export function connectStore(store: Store) {
+interface ReactObservableContext {
+  (action: Action): void;
+}
+const ctx = createContext<ReactObservableContext | undefined>(undefined);
+export const Provider: FC<{
+  store: Store;
+}> = ({ store, children }) => {
   const actionSubject = new Subject<Action>();
   const dispatch = actionSubject.next.bind(actionSubject);
   store(actionSubject.asObservable(), dispatch);
 
-  return dispatch;
-}
-
-const ctx = createContext<ReturnType<typeof connectStore> | undefined>(
-  undefined
-);
-export const Provider = ctx.Provider;
+  return createElement(
+    ctx.Provider,
+    {
+      value: dispatch
+    },
+    children
+  );
+};
 export const Consumer = ctx.Consumer;
 export const useDispatch = () => useContext(ctx)!;
 export const useAction = <TArg extends Array<any>, TAction extends Action>(
@@ -183,6 +198,16 @@ export const useAction = <TArg extends Array<any>, TAction extends Action>(
 ) => {
   const dispatch = useDispatch();
   return (...args: TArg) => dispatch(actionCreator(...args));
+};
+
+const usePropsObservable = <T>(props: T): ImmediateObservable<T> => {
+  const propSubject = useMemo(() => new BehaviorSubject(props), []);
+
+  useEffect(() => {
+    propSubject.next(props);
+  }, [props]);
+
+  return propSubject;
 };
 
 export function useSelector<T>(
@@ -196,19 +221,16 @@ export function useSelector<P, T>(
   selector: ParametricSelector<P, T>,
   props?: P
 ): T {
-  const propSubject = useRef(new BehaviorSubject(props!));
-  const state$ = useRef(selector(propSubject.current));
+  const prop$ = usePropsObservable(props!);
+  const state$ = useMemo(() => selector(prop$), [selector]);
 
-  const [state, setState] = useState<T>(() => state$.current.getValue());
+  const [state, setState] = useState<T>(() => state$.getValue());
 
   useEffect(() => {
-    const subscription = state$.current.subscribe(setState);
+    setState(state$.getValue());
+    const subscription = state$.subscribe(setState);
     return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    propSubject.current.next(props!);
-  });
+  }, [state$]);
 
   return state;
 }
