@@ -6,14 +6,24 @@ import {
   useAction,
   Provider
 } from "./react-observable";
+import { Subject } from "rxjs";
+import { map } from "rxjs/operators";
 
 const increment = createActionCreator("increment");
-const [getCounter, counterStore] = createStore(0, (state, action) => {
-  if (increment.isCreatorOf(action)) {
-    return state + 1;
+const [getCounter, counterStore] = createStore(
+  0,
+  (state, action) => {
+    if (increment.isCreatorOf(action)) {
+      return state + 1;
+    }
+    return state;
+  },
+  () => {
+    const actionSubject = new Subject();
+    (window as any).increment = () => actionSubject.next();
+    return actionSubject.pipe(map(increment));
   }
-  return state;
-});
+);
 
 export function CMTest() {
   return (
