@@ -1,18 +1,18 @@
-import React from 'react'
-import { useSelector } from './react-observable'
-import { getVisibleTodos } from './todos'
-import TodoItem from './TodoItem'
+import React from "react";
+import { useSelector } from "./react-observable";
+import { getVisibleTodos } from "./todos";
+import TodoItem from "./TodoItem";
 
 const TodoList = () => {
   const filteredTodos = useSelector(getVisibleTodos);
 
   return (
     <ul className="todo-list">
-      {filteredTodos.map(todo =>
+      {filteredTodos.map(todo => (
         <TodoItem key={todo.id} todo={todo} />
-      )}
+      ))}
     </ul>
-  )
-}
+  );
+};
 
-export default TodoList
+export default TodoList;

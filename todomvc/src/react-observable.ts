@@ -1,101 +1,107 @@
-import { Observable, Subject, ReplaySubject, BehaviorSubject, combineLatest, EMPTY } from "rxjs";
-import { scan, distinctUntilChanged, map } from 'rxjs/operators';
+import {
+  Observable,
+  Subject,
+  ReplaySubject,
+  BehaviorSubject,
+  combineLatest,
+  EMPTY
+} from "rxjs";
+import { scan, distinctUntilChanged, map } from "rxjs/operators";
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 
 export interface Action {
-    type: symbol;
+  type: symbol;
 }
-type ArgumentTypes<T> = T extends (... args: infer U ) => infer R ? U: never;
+type ArgumentTypes<T> = T extends (...args: infer U) => infer R ? U : never;
 // type ReplaceReturnType<T, TNewReturn> = (...a: ArgumentTypes<T>) => TNewReturn;
 
-type ActionCreator<T extends Array<any>, A extends Action> = ((...args: T) => A) & {
-    actionType: symbol,
-    isCreatorOf: (action: Action) => action is A
+type ActionCreator<T extends Array<any>, A extends Action> = ((
+  ...args: T
+) => A) & {
+  actionType: symbol;
+  isCreatorOf: (action: Action) => action is A;
 };
 export function createActionCreator<
-    TS extends symbol,
-    TFn extends (...args: any) => any
->(
-    s: TS | string,
-    fn?: TFn
-) {
-    fn = fn || (() => {}) as any;
+  TS extends symbol,
+  TFn extends (...args: any) => any
+>(s: TS | string, fn?: TFn) {
+  fn = fn || ((() => {}) as any);
 
-    const type = typeof s === 'string' ? Symbol(s) : s;
+  const type = typeof s === "string" ? Symbol(s) : s;
 
-    type ThisAction = {
-        type: symbol
-    } & ReturnType<TFn>;
+  type ThisAction = {
+    type: symbol;
+  } & ReturnType<TFn>;
 
-    const actionCreator = (...args: ArgumentTypes<TFn>): ThisAction => ({
-        type,
-        ...fn!(...args)
-    });
+  const actionCreator = (...args: ArgumentTypes<TFn>): ThisAction => ({
+    type,
+    ...fn!(...args)
+  });
 
-    const typeCheck = {
-        actionType: type,
-        isCreatorOf: (action: Action): action is ThisAction => {
-            return action.type === type
-        }
+  const typeCheck = {
+    actionType: type,
+    isCreatorOf: (action: Action): action is ThisAction => {
+      return action.type === type;
     }
+  };
 
-    const ret: ActionCreator<ArgumentTypes<TFn>, ThisAction> = Object.assign(
-        actionCreator,
-        typeCheck
-    );
-    return ret;
+  const ret: ActionCreator<ArgumentTypes<TFn>, ThisAction> = Object.assign(
+    actionCreator,
+    typeCheck
+  );
+  return ret;
 }
 
 type Store = (
-    action$: Observable<Action>,
-    dispatch: (action: Action) => void
+  action$: Observable<Action>,
+  dispatch: (action: Action) => void
 ) => () => void;
 
 type ImmediateObservable<T> = Observable<T> & {
-    getValue: () => T
+  getValue: () => T;
 };
 type Selector<T> = () => ImmediateObservable<T>;
-type ParametricSelector<P, T> = (prop$: ImmediateObservable<P>) => ImmediateObservable<T>;
+type ParametricSelector<P, T> = (
+  prop$: ImmediateObservable<P>
+) => ImmediateObservable<T>;
 
 export function createStore<T>(
-    initialState: T,
-    stateFn: (action$: Observable<Action>) => Observable<T>,
-    effectFn: (action$: Observable<Action>) => Observable<Action> = () => EMPTY
+  initialState: T,
+  stateFn: (action$: Observable<Action>) => Observable<T>,
+  effectFn: (action$: Observable<Action>) => Observable<Action> = () => EMPTY
 ) {
-    const stateSubject = new BehaviorSubject(initialState);
-    const store: Store = (action$, dispatch) => {
-        const stateSubscription = stateFn(action$).subscribe(stateSubject);
-        const effectSubscription = effectFn(action$).subscribe(dispatch);
-        return () => {
-            stateSubscription.unsubscribe();
-            effectSubscription.unsubscribe();
-        }
+  const stateSubject = new BehaviorSubject(initialState);
+  const store: Store = (action$, dispatch) => {
+    const stateSubscription = stateFn(action$).subscribe(stateSubject);
+    const effectSubscription = effectFn(action$).subscribe(dispatch);
+    return () => {
+      stateSubscription.unsubscribe();
+      effectSubscription.unsubscribe();
+    };
+  };
+
+  const stateObservable: ImmediateObservable<T> = Object.assign(
+    stateSubject.asObservable(),
+    {
+      getValue: () => stateSubject.value
     }
+  );
+  const stateSelector: Selector<T> = () => stateObservable;
 
-    const stateObservable: ImmediateObservable<T> = Object.assign(
-        stateSubject.asObservable(),
-        {
-            getValue: () => stateSubject.value
-        }
-    );
-    const stateSelector: Selector<T> = () => stateObservable;
-
-    return [stateSelector, store] as [typeof stateSelector, Store];
+  return [stateSelector, store] as [typeof stateSelector, Store];
 }
 
 export function createReducerStore<T>(
-    initialState: T,
-    reducerFn: (state: T, action: Action) => T,
-    effectFn?: (action$: Observable<Action>) => Observable<Action>
+  initialState: T,
+  reducerFn: (state: T, action: Action) => T,
+  effectFn?: (action$: Observable<Action>) => Observable<Action>
 ) {
-    return createStore(
-        initialState,
-        action$ => action$.pipe(
-            scan(reducerFn, initialState),
-            distinctUntilChanged()
-        ),
-        effectFn
-    );
+  return createStore(
+    initialState,
+    action$ =>
+      action$.pipe(scan(reducerFn, initialState), distinctUntilChanged()),
+    effectFn
+  );
 }
 
 // export function createSelector<T, R1>(
@@ -107,95 +113,102 @@ export function createReducerStore<T>(
 //     computeFn: (dep1: R1, dep2: R2) => T
 // ): Selector<T>;
 export function createSelector<T, P1, R1>(
-    deps: [ParametricSelector<P1, R1>],
-    computeFn: (dep1: R1) => T
+  deps: [ParametricSelector<P1, R1>],
+  computeFn: (dep1: R1) => T
 ): ParametricSelector<P1, T>;
 export function createSelector<T, P1, R1, P2, R2>(
-    deps: [ParametricSelector<P1, R1>, ParametricSelector<P2, R2>],
-    computeFn: (dep1: R1, dep2: R2) => T
-): ParametricSelector<P1  & P2, T>;
+  deps: [ParametricSelector<P1, R1>, ParametricSelector<P2, R2>],
+  computeFn: (dep1: R1, dep2: R2) => T
+): ParametricSelector<P1 & P2, T>;
 export function createSelector<T>(
-    deps: ParametricSelector<any, any>[],
-    computeFn: (...args: any) => T
+  deps: ParametricSelector<any, any>[],
+  computeFn: (...args: any) => T
 ): ParametricSelector<any, T> {
-    return prop$ => {
-        const depStreams = deps.map(dep => dep(prop$));
-        const stream = combineLatest(depStreams).pipe(
-            map(deps => computeFn(...deps)),
-            distinctUntilChanged()
-        );
+  return prop$ => {
+    const depStreams = deps.map(dep => dep(prop$));
+    const stream = combineLatest(depStreams).pipe(
+      map(deps => computeFn(...deps)),
+      distinctUntilChanged()
+    );
 
-        return Object.assign(
-            stream,
-            {
-                getValue: () => computeFn(
-                    ...depStreams.map(dep => dep.getValue())
-                )
-            }
-        );
-    }
+    return Object.assign(stream, {
+      getValue: () => computeFn(...depStreams.map(dep => dep.getValue()))
+    });
+  };
 }
 
 export function createPropSelector<T, K extends string>(
-    propName: K
-): ParametricSelector<{
-    [key in K]: T
-}, T> {
-    return prop$ => {
-        const stream = prop$.pipe(
-            map(props => props[propName]),
-            distinctUntilChanged()
-        );
+  propName: K
+): ParametricSelector<
+  {
+    [key in K]: T;
+  },
+  T
+> {
+  return prop$ => {
+    const stream = prop$.pipe(
+      map(props => props[propName]),
+      distinctUntilChanged()
+    );
 
-        return Object.assign(
-            stream,
-            {
-                getValue: () => prop$.getValue()[propName]
-            }
-        )
-    }
+    return Object.assign(stream, {
+      getValue: () => prop$.getValue()[propName]
+    });
+  };
 }
 
 export function combineStores(stores: Store[]): Store {
-    return (action$, dispatch) => {
-        const unsubs = stores.map(store => store(action$, dispatch));
-        return () => unsubs.forEach(fn => fn());
-    }
+  return (action$, dispatch) => {
+    const unsubs = stores.map(store => store(action$, dispatch));
+    return () => unsubs.forEach(fn => fn());
+  };
 }
 
 export function connectStore(store: Store) {
-    const actionSubject = new Subject<Action>();
-    const dispatch = actionSubject.next.bind(actionSubject);
-    store(actionSubject.asObservable(), dispatch);
+  const actionSubject = new Subject<Action>();
+  const dispatch = actionSubject.next.bind(actionSubject);
+  store(actionSubject.asObservable(), dispatch);
 
-    return dispatch;
+  return dispatch;
 }
 
-const ctx = createContext<ReturnType<typeof connectStore> | undefined>(undefined);
+const ctx = createContext<ReturnType<typeof connectStore> | undefined>(
+  undefined
+);
 export const Provider = ctx.Provider;
 export const Consumer = ctx.Consumer;
 export const useDispatch = () => useContext(ctx)!;
-export const useAction = <TArg extends Array<any>, TAction extends Action>(actionCreator: ActionCreator<TArg, TAction>) => {
-    const dispatch = useDispatch();
-    return (...args: TArg) => dispatch(actionCreator(...args));
-}
+export const useAction = <TArg extends Array<any>, TAction extends Action>(
+  actionCreator: ActionCreator<TArg, TAction>
+) => {
+  const dispatch = useDispatch();
+  return (...args: TArg) => dispatch(actionCreator(...args));
+};
 
-export function useSelector<T>(selector: ParametricSelector<undefined | {}, T>): T;
-export function useSelector<P, T>(selector: ParametricSelector<P, T>, props: P): T;
-export function useSelector<P, T>(selector: ParametricSelector<P, T>, props?: P): T {
-    const propSubject = useRef(new BehaviorSubject(props!));
-    const state$ = useRef(selector(propSubject.current));
+export function useSelector<T>(
+  selector: ParametricSelector<undefined | {}, T>
+): T;
+export function useSelector<P, T>(
+  selector: ParametricSelector<P, T>,
+  props: P
+): T;
+export function useSelector<P, T>(
+  selector: ParametricSelector<P, T>,
+  props?: P
+): T {
+  const propSubject = useRef(new BehaviorSubject(props!));
+  const state$ = useRef(selector(propSubject.current));
 
-    const [state, setState] = useState<T>(() => state$.current.getValue());
+  const [state, setState] = useState<T>(() => state$.current.getValue());
 
-    useEffect(() => {
-        const subscription = state$.current.subscribe(setState);
-        return () => subscription.unsubscribe();
-    }, []);
+  useEffect(() => {
+    const subscription = state$.current.subscribe(setState);
+    return () => subscription.unsubscribe();
+  }, []);
 
-    useEffect(() => {
-        propSubject.current.next(props!);
-    });
+  useEffect(() => {
+    propSubject.current.next(props!);
+  });
 
-    return state;
+  return state;
 }

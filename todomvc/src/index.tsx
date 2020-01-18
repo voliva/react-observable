@@ -6,10 +6,7 @@ import { combineStores, connectStore, Provider } from "./react-observable";
 import { todosStore } from "./todos";
 import { visibilityFilterStore } from "./visibilityFilter";
 
-const rootStore = combineStores([
-    todosStore,
-    visibilityFilterStore
-]);
+const rootStore = combineStores([todosStore, visibilityFilterStore]);
 const connectedStore = connectStore(rootStore);
 
 ReactDOM.render(

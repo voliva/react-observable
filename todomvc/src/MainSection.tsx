@@ -1,8 +1,13 @@
 import React from "react";
 import { useSelector, useAction } from "./react-observable";
-import { getCompletedTodoCount, getTodosCount, clearCompleted, completeAllTodos } from "./todos";
-import Footer from './Footer';
-import TodoList from './TodoList';
+import {
+  getCompletedTodoCount,
+  getTodosCount,
+  clearCompleted,
+  completeAllTodos
+} from "./todos";
+import Footer from "./Footer";
+import TodoList from "./TodoList";
 
 const MainSection = () => {
   const completedCount = useSelector(getCompletedTodoCount);

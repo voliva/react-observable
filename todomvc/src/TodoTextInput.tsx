@@ -9,7 +9,7 @@ export const TodoTextInput: FC<{
   editing?: boolean;
   newTodo?: boolean;
 }> = ({ initialText, onSave, placeholder, editing, newTodo }) => {
-  const [text, setText] = useState(initialText || '');
+  const [text, setText] = useState(initialText || "");
 
   const handleSubmit = (e: any) => {
     const text = e.target.value.trim();
