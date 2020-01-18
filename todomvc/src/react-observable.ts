@@ -1,12 +1,11 @@
 import {
   createContext,
+  createElement,
+  FC,
   useContext,
   useEffect,
-  useRef,
-  useState,
-  FC,
-  createElement,
-  useMemo
+  useMemo,
+  useState
 } from "react";
 import {
   BehaviorSubject,
@@ -60,66 +59,93 @@ export function createActionCreator<
   return ret;
 }
 
-type Store = (
-  action$: Observable<Action>,
-  dispatch: (action: Action) => void
-) => () => void;
-
 type ImmediateObservable<T> = Observable<T> & {
   getValue: () => T;
 };
-type Selector<T> = () => ImmediateObservable<T>;
+type Selector<T> = (
+  prop$?: undefined,
+  readSelector?: ReadSelector
+) => ImmediateObservable<T>;
+
 type ParametricSelector<P, T> = (
+  prop$: ImmediateObservable<P>,
+  readSelector?: ReadSelector
+) => ImmediateObservable<T>;
+
+type ReadSelector = <P, T>(
+  selector: Selector<T> | ParametricSelector<P, T>,
   prop$: ImmediateObservable<P>
 ) => ImmediateObservable<T>;
 
+type Store = (
+  action$: Observable<Action>,
+  dispatch: (action: Action) => void,
+  readSelector: ReadSelector
+) => () => void;
+
 export function createStore<T>(
   initialState: T,
-  stateFn: (action$: Observable<Action>) => Observable<T>,
-  effectFn: (action$: Observable<Action>) => Observable<Action> = () => EMPTY
+  stateFn: (
+    action$: Observable<Action>,
+    readSelector: ReadSelector
+  ) => Observable<T>,
+  effectFn: (
+    action$: Observable<Action>,
+    readSelector: ReadSelector
+  ) => Observable<Action> = () => EMPTY
 ) {
   const stateSubject = new BehaviorSubject(initialState);
-  const store: Store = (action$, dispatch) => {
-    const stateSubscription = stateFn(action$).subscribe(stateSubject);
-    const effectSubscription = effectFn(action$).subscribe(dispatch);
+  const store: Store = (action$, dispatch, readSelector) => {
+    const stateSubscription = stateFn(action$, readSelector).subscribe(
+      stateSubject
+    );
+    const effectSubscription = effectFn(action$, readSelector).subscribe(
+      dispatch
+    );
     return () => {
       stateSubscription.unsubscribe();
       effectSubscription.unsubscribe();
     };
   };
 
-  const stateObservable: ImmediateObservable<T> = Object.assign(
-    stateSubject.asObservable(),
-    {
-      getValue: () => stateSubject.value
-    }
-  );
-  const stateSelector: Selector<T> = () => stateObservable;
+  const stateSelector: Selector<T> = () => stateSubject;
 
   return [stateSelector, store] as [typeof stateSelector, Store];
 }
 
 export function createReducerStore<T>(
   initialState: T,
-  reducerFn: (state: T, action: Action) => T,
-  effectFn?: (action$: Observable<Action>) => Observable<Action>
+  reducerFn: (state: T, action: Action, readSelector: ReadSelector) => T,
+  effectFn?: (
+    action$: Observable<Action>,
+    readSelector: ReadSelector
+  ) => Observable<Action>
 ) {
   return createStore(
     initialState,
-    action$ =>
-      action$.pipe(scan(reducerFn, initialState), distinctUntilChanged()),
+    (action$, readSelector) =>
+      action$.pipe(
+        scan(
+          (state, action) => reducerFn(state, action, readSelector),
+          initialState
+        ),
+        distinctUntilChanged()
+      ),
     effectFn
   );
 }
 
-// export function createSelector<T, R1>(
-//     deps: [Selector<R1>],
-//     computeFn: (dep1: R1) => T
-// ): Selector<T>;
-// export function createSelector<T, R1, R2>(
-//     deps: [Selector<R1>, Selector<R2>],
-//     computeFn: (dep1: R1, dep2: R2) => T
-// ): Selector<T>;
+const defaultReadSelector: ReadSelector = (selector: any, prop$) =>
+  selector(prop$);
+
+export function createSelector<T, R1>(
+  deps: [Selector<R1>],
+  computeFn: (dep1: R1) => T
+): Selector<T>;
+export function createSelector<T, R1, R2>(
+  deps: [Selector<R1>, Selector<R2>],
+  computeFn: (dep1: R1, dep2: R2) => T
+): Selector<T>;
 export function createSelector<T, P1, R1>(
   deps: [ParametricSelector<P1, R1>],
   computeFn: (dep1: R1) => T
@@ -129,11 +155,14 @@ export function createSelector<T, P1, R1, P2, R2>(
   computeFn: (dep1: R1, dep2: R2) => T
 ): ParametricSelector<P1 & P2, T>;
 export function createSelector<T>(
-  deps: ParametricSelector<any, any>[],
+  deps: (Selector<any> | ParametricSelector<any, any>)[],
   computeFn: (...args: any) => T
-): ParametricSelector<any, T> {
-  return prop$ => {
-    const depStreams = deps.map(dep => dep(prop$));
+): Selector<T> | ParametricSelector<any, T> {
+  return (
+    prop$: ImmediateObservable<any>,
+    readSelector: ReadSelector = defaultReadSelector
+  ) => {
+    const depStreams = deps.map(dep => readSelector(dep, prop$));
     const stream = combineLatest(depStreams).pipe(
       map(deps => computeFn(...deps)),
       distinctUntilChanged()
@@ -166,14 +195,15 @@ export function createPropSelector<T, K extends string>(
 }
 
 export function combineStores(stores: Store[]): Store {
-  return (action$, dispatch) => {
-    const unsubs = stores.map(store => store(action$, dispatch));
+  return (action$, dispatch, readSelector) => {
+    const unsubs = stores.map(store => store(action$, dispatch, readSelector));
     return () => unsubs.forEach(fn => fn());
   };
 }
 
 interface ReactObservableContext {
-  (action: Action): void;
+  dispatch: (action: Action) => void;
+  readSelector: ReadSelector;
 }
 const ctx = createContext<ReactObservableContext | undefined>(undefined);
 export const Provider: FC<{
@@ -181,18 +211,21 @@ export const Provider: FC<{
 }> = ({ store, children }) => {
   const actionSubject = new Subject<Action>();
   const dispatch = actionSubject.next.bind(actionSubject);
-  store(actionSubject.asObservable(), dispatch);
+  store(actionSubject.asObservable(), dispatch, defaultReadSelector);
 
   return createElement(
     ctx.Provider,
     {
-      value: dispatch
+      value: {
+        dispatch,
+        readSelector: defaultReadSelector
+      }
     },
     children
   );
 };
 export const Consumer = ctx.Consumer;
-export const useDispatch = () => useContext(ctx)!;
+export const useDispatch = () => useContext(ctx)!.dispatch;
 export const useAction = <TArg extends Array<any>, TAction extends Action>(
   actionCreator: ActionCreator<TArg, TAction>
 ) => {
@@ -211,18 +244,19 @@ const usePropsObservable = <T>(props: T): ImmediateObservable<T> => {
 };
 
 export function useSelector<T>(
-  selector: ParametricSelector<undefined | {}, T>
+  selector: Selector<T> | ParametricSelector<undefined | {}, T>
 ): T;
 export function useSelector<P, T>(
-  selector: ParametricSelector<P, T>,
+  selector: Selector<T> | ParametricSelector<P, T>,
   props: P
 ): T;
 export function useSelector<P, T>(
-  selector: ParametricSelector<P, T>,
+  selector: Selector<T> | ParametricSelector<P, T>,
   props?: P
 ): T {
+  const { readSelector } = useContext(ctx)!;
   const prop$ = usePropsObservable(props!);
-  const state$ = useMemo(() => selector(prop$), [selector]);
+  const state$ = useMemo(() => readSelector(selector, prop$), [selector]);
 
   const [state, setState] = useState<T>(() => state$.getValue());
 
