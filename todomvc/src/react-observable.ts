@@ -68,6 +68,10 @@ type Selector<T> = (
   prop$?: undefined,
   readSelector?: ReadSelector
 ) => ImmediateObservable<T>;
+type BaseSelector<T> = Selector<T> & {
+  initialState: T;
+  reducerFn: (state: T, action: Action, readSelector: ReadSelector) => T;
+};
 
 type ParametricSelector<P, T> = (
   prop$: ImmediateObservable<P>,
@@ -79,34 +83,40 @@ type ReadSelector = <P, T>(
   prop$: ImmediateObservable<P>
 ) => ImmediateObservable<T>;
 
-type Store = {
+interface Store<T = any> {
   connect: (
     action$: Observable<Action>,
     dispatch: (action: Action) => void,
     readSelector: ReadSelector
   ) => () => void;
-  baseSelectors: Selector<any>[];
-};
+  baseSelectors: BaseSelector<T>[];
+}
 
 export function createStore<T>(
   initialState: T,
-  stateFn: (
-    action$: Observable<Action>,
-    readSelector: ReadSelector
-  ) => Observable<T>,
+  reducerFn: (state: T, action: Action, readSelector: ReadSelector) => T,
   effectFn: (
     action$: Observable<Action>,
     readSelector: ReadSelector
   ) => Observable<Action> = () => EMPTY
 ) {
   const stateSubject = new BehaviorSubject(initialState);
-  const stateSelector: Selector<T> = () => stateSubject;
+  const stateSelector: BaseSelector<T> = Object.assign(() => stateSubject, {
+    initialState,
+    reducerFn
+  });
 
-  const store: Store = {
+  const store: Store<T> = {
     connect: (action$, dispatch, readSelector) => {
-      const stateSubscription = stateFn(action$, readSelector).subscribe(
-        stateSubject
-      );
+      const stateSubscription = action$
+        .pipe(
+          scan(
+            (state, action) => reducerFn(state, action, readSelector),
+            initialState
+          ),
+          distinctUntilChanged()
+        )
+        .subscribe(stateSubject);
       const effectSubscription = effectFn(action$, readSelector).subscribe(
         dispatch
       );
@@ -118,29 +128,7 @@ export function createStore<T>(
     baseSelectors: [stateSelector]
   };
 
-  return [stateSelector, store] as [typeof stateSelector, Store];
-}
-
-export function createReducerStore<T>(
-  initialState: T,
-  reducerFn: (state: T, action: Action, readSelector: ReadSelector) => T,
-  effectFn?: (
-    action$: Observable<Action>,
-    readSelector: ReadSelector
-  ) => Observable<Action>
-) {
-  return createStore(
-    initialState,
-    (action$, readSelector) =>
-      action$.pipe(
-        scan(
-          (state, action) => reducerFn(state, action, readSelector),
-          initialState
-        ),
-        distinctUntilChanged()
-      ),
-    effectFn
-  );
+  return [stateSelector, store] as [typeof stateSelector, Store<T>];
 }
 
 const defaultReadSelector: ReadSelector = (selector: any, prop$) =>
@@ -210,7 +198,7 @@ export function combineStores(stores: Store[]): Store {
       );
       return () => unsubs.forEach(fn => fn());
     },
-    baseSelectors: stores.reduce<Selector<any>[]>(
+    baseSelectors: stores.reduce<BaseSelector<any>[]>(
       (selectors, store) => selectors.concat(store.baseSelectors),
       []
     )
@@ -225,28 +213,35 @@ const ctx = createContext<ReactObservableContext | undefined>(undefined);
 export const Provider: FC<{
   store: Store;
 }> = ({ store, children }) => {
-  const selectorStates = useMemo(
-    () =>
-      store.baseSelectors.map(selector => ({
-        selector,
-        state$: selector()
-      })),
-    []
-  );
+  const { baseSelectors } = store;
   const actionSubject = useMemo(() => new Subject<Action>(), []);
 
+  const readSelector: ReadSelector = (selector, prop$) => {
+    if (!baseSelectors.includes(selector as any)) {
+      return (selector as any)(prop$, readSelector);
+    }
+    if (!selectorSubjects.has(selector as any)) {
+      const subject = new BehaviorSubject(reactState.get(selector as any));
+      selectorSubjects.set(selector as any, subject);
+    }
+    return selectorSubjects.get(selector as any);
+  };
+
   const [reactState, reactDispatch] = useReducer(
-    () => {
+    (state: WeakMap<Selector<any>, any>, action: Action) => {
       const newState = new WeakMap<Selector<any>, any>();
-      selectorStates.forEach(({ selector, state$ }) =>
-        newState.set(selector, state$.getValue())
+      baseSelectors.forEach(selector =>
+        newState.set(
+          selector,
+          selector.reducerFn(state.get(selector), action, readSelector)
+        )
       );
       return newState;
     },
     new WeakMap<Selector<any>, any>(),
     state => {
-      selectorStates.forEach(({ selector, state$ }) =>
-        state.set(selector, state$.getValue())
+      baseSelectors.forEach(selector =>
+        state.set(selector, selector.initialState)
       );
       return state;
     }
@@ -255,7 +250,7 @@ export const Provider: FC<{
   const dispatch = useCallback(
     (action: Action) => {
       actionSubject.next(action);
-      reactDispatch();
+      reactDispatch(action);
     },
     [actionSubject]
   );
@@ -264,26 +259,15 @@ export const Provider: FC<{
     () => new WeakMap<Selector<any>, BehaviorSubject<any>>(),
     []
   );
-  const readSelector: ReadSelector = (selector, prop$) => {
-    const baseSelector = selectorStates.find(
-      selectorState => selectorState.selector === selector
-    );
-    if (!baseSelector) {
-      return (selector as any)(prop$, readSelector);
-    }
-    if (!selectorSubjects.has(selector as any)) {
-      const subject = new BehaviorSubject(baseSelector.state$.getValue());
-      selectorSubjects.set(selector as any, subject);
-    }
-    return selectorSubjects.get(selector as any);
-  };
 
   useEffect(() => {
     store.connect(actionSubject.asObservable(), dispatch, readSelector);
   }, []);
 
   useEffect(() => {
-    selectorStates.forEach(({ selector }) => {
+    console.log(reactState);
+
+    baseSelectors.forEach(selector => {
       if (selectorSubjects.has(selector)) {
         selectorSubjects.get(selector)?.next(reactState.get(selector));
       }

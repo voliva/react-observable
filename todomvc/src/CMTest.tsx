@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  createReducerStore,
+  createStore,
   createActionCreator,
   useSelector,
   useAction,
@@ -8,7 +8,7 @@ import {
 } from "./react-observable";
 
 const increment = createActionCreator("increment");
-const [getCounter, counterStore] = createReducerStore(0, (state, action) => {
+const [getCounter, counterStore] = createStore(0, (state, action) => {
   if (increment.isCreatorOf(action)) {
     return state + 1;
   }

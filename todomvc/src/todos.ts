@@ -1,6 +1,6 @@
 import {
   createActionCreator,
-  createReducerStore,
+  createStore,
   createSelector
 } from "./react-observable";
 import { getVisibilityFilter, TodoFilter } from "./visibilityFilter";
@@ -37,46 +37,43 @@ type State = Array<{
   id: number;
 }>;
 
-const [getTodos, todosStore] = createReducerStore<State>(
-  [],
-  (state, action) => {
-    if (addTodo.isCreatorOf(action)) {
-      return [
-        ...state,
-        {
-          id: state.reduce((maxId, todo) => Math.max(todo.id, maxId), -1) + 1,
-          completed: false,
-          text: action.text
-        }
-      ];
-    }
-    if (deleteTodo.isCreatorOf(action)) {
-      return state.filter(todo => todo.id !== action.id);
-    }
-    if (editTodo.isCreatorOf(action)) {
-      return state.map(todo =>
-        todo.id === action.id ? { ...todo, text: action.text } : todo
-      );
-    }
-    if (completeTodo.isCreatorOf(action)) {
-      return state.map(todo =>
-        todo.id === action.id ? { ...todo, completed: !todo.completed } : todo
-      );
-    }
-    if (completeAllTodos.isCreatorOf(action)) {
-      const areAllMarked = state.every(todo => todo.completed);
-      return state.map(todo => ({
-        ...todo,
-        completed: !areAllMarked
-      }));
-    }
-    if (clearCompleted.isCreatorOf(action)) {
-      return state.filter(todo => todo.completed === false);
-    }
-
-    return state;
+const [getTodos, todosStore] = createStore<State>([], (state, action) => {
+  if (addTodo.isCreatorOf(action)) {
+    return [
+      ...state,
+      {
+        id: state.reduce((maxId, todo) => Math.max(todo.id, maxId), -1) + 1,
+        completed: false,
+        text: action.text
+      }
+    ];
   }
-);
+  if (deleteTodo.isCreatorOf(action)) {
+    return state.filter(todo => todo.id !== action.id);
+  }
+  if (editTodo.isCreatorOf(action)) {
+    return state.map(todo =>
+      todo.id === action.id ? { ...todo, text: action.text } : todo
+    );
+  }
+  if (completeTodo.isCreatorOf(action)) {
+    return state.map(todo =>
+      todo.id === action.id ? { ...todo, completed: !todo.completed } : todo
+    );
+  }
+  if (completeAllTodos.isCreatorOf(action)) {
+    const areAllMarked = state.every(todo => todo.completed);
+    return state.map(todo => ({
+      ...todo,
+      completed: !areAllMarked
+    }));
+  }
+  if (clearCompleted.isCreatorOf(action)) {
+    return state.filter(todo => todo.completed === false);
+  }
+
+  return state;
+});
 export { getTodos, todosStore };
 
 export const getVisibleTodos = createSelector(
