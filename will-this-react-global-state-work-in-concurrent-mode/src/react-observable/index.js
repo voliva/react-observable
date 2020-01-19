@@ -1,5 +1,5 @@
 import React, { useTransition } from 'react';
-import { createStore, Provider, useSelector, useDispatch, createActionCreator, createSelector } from './react-observable';
+import { createStore, Provider, useSelector, useDispatch, createActionCreator, createSelector, useBranchingStateSelector } from './react-observable';
 
 import {
   syncBlock,
@@ -28,15 +28,20 @@ const [baseSelector, store] = createStore({
 
 const getCount = createSelector([baseSelector], base => base.count);
 
+// const CounterWrapper = () => {
+//   const count = useBranchingStateSelector(getCount);
+//   return <Counter count={count} />
+// }
+
 const Counter = React.memo(() => {
-  const count = useSelector(getCount);
+  const count = useBranchingStateSelector(getCount);
   syncBlock();
   return <div className="count">{count}</div>;
 }, shallowEqual);
 
 const Main = () => {
   const dispatch = useDispatch();
-  const count = useSelector(getCount);
+  const count = useBranchingStateSelector(getCount);
   useCheckTearing();
   useRegisterIncrementDispatcher(React.useCallback(() => {
     dispatch(increment());

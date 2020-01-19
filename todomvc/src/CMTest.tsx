@@ -2,7 +2,7 @@ import React from "react";
 import {
   createStore,
   createActionCreator,
-  useSelector,
+  useBranchingStateSelector,
   useAction,
   Provider
 } from "./react-observable";
@@ -50,7 +50,7 @@ const notifySuspense = () => {
 };
 
 const Counter = ({ interrupt }: { interrupt: boolean }) => {
-  const value = useSelector(getCounter);
+  const value = useBranchingStateSelector(getCounter);
 
   if (interrupt) throw promise;
 

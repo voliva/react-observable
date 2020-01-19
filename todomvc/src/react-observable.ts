@@ -5,9 +5,8 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   useReducer,
-  useCallback
+  useState
 } from "react";
 import {
   BehaviorSubject,
@@ -208,6 +207,8 @@ export function combineStores(stores: Store[]): Store {
 interface ReactObservableContext {
   dispatch: (action: Action) => void;
   readSelector: ReadSelector;
+  baseSelectors: BaseSelector<any>[];
+  action$: Observable<Action>;
 }
 const ctx = createContext<ReactObservableContext | undefined>(undefined);
 export const Provider: FC<{
@@ -237,7 +238,9 @@ export const Provider: FC<{
   const value = useMemo(
     () => ({
       dispatch,
-      readSelector
+      readSelector,
+      baseSelectors,
+      action$
     }),
     []
   );
@@ -295,4 +298,56 @@ export function useSelector<P, T>(
   }, [state$]);
 
   return state;
+}
+
+export function useBranchingStateSelector<T>(
+  selector: Selector<T> | ParametricSelector<undefined | {}, T>
+): T;
+export function useBranchingStateSelector<P, T>(
+  selector: Selector<T> | ParametricSelector<P, T>,
+  props: P
+): T;
+export function useBranchingStateSelector<P, T>(
+  selector: Selector<T> | ParametricSelector<P, T>,
+  props?: P
+): T {
+  const { readSelector: ctxReadSelector, baseSelectors, action$ } = useContext(
+    ctx
+  )!;
+  const prop$ = usePropsObservable(props!);
+
+  const readSelector: ReadSelector = (selector, prop$) => {
+    if (!baseSelectors.includes(selector as any)) {
+      return (selector as any)(prop$, readSelector);
+    }
+    return Object.assign((selector as any)(EMPTY, readSelector), {
+      getValue: () => reactState.get(selector as any)!
+    });
+  };
+
+  const [reactState, reactDispatch] = useReducer(
+    (state: WeakMap<Selector<any>, any>, action: Action) => {
+      const newState = new WeakMap<Selector<any>, any>();
+      baseSelectors.forEach(selector => {
+        const subState = state.get(selector);
+        const newSubState = selector.reducerFn(subState, action, readSelector);
+        newState.set(selector, newSubState);
+      });
+      return newState;
+    },
+    new WeakMap<Selector<any>, any>(),
+    state => {
+      baseSelectors.forEach(selector =>
+        state.set(selector, ctxReadSelector(selector, EMPTY as any).getValue())
+      );
+      return state;
+    }
+  );
+
+  useEffect(() => {
+    const subscription = action$.subscribe(reactDispatch);
+    return () => subscription.unsubscribe();
+  }, [action$]);
+
+  return readSelector(selector, prop$).getValue();
 }

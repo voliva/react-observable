@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import { BehaviorSubject, combineLatest, EMPTY, Subject } from "rxjs";
 import { distinctUntilChanged, map, scan } from "rxjs/operators";
 export function createActionCreator(s, fn) {
@@ -84,7 +84,9 @@ export const Provider = ({ store, children }) => {
   };
   const value = useMemo(() => ({
     dispatch,
-    readSelector
+    readSelector,
+    baseSelectors,
+    action$
   }), []);
   useEffect(() => store.connect(action$, dispatch, readSelector), []);
   return createElement(ctx.Provider, {
@@ -115,4 +117,33 @@ export function useSelector(selector, props) {
     return () => subscription.unsubscribe();
   }, [state$]);
   return state;
+}
+export function useBranchingStateSelector(selector, props) {
+  const { readSelector: ctxReadSelector, baseSelectors, action$ } = useContext(ctx);
+  const prop$ = usePropsObservable(props);
+  const readSelector = (selector, prop$) => {
+    if (!baseSelectors.includes(selector)) {
+      return selector(prop$, readSelector);
+    }
+    return Object.assign(selector(EMPTY, readSelector), {
+      getValue: () => reactState.get(selector)
+    });
+  };
+  const [reactState, reactDispatch] = useReducer((state, action) => {
+    const newState = new WeakMap();
+    baseSelectors.forEach(selector => {
+      const subState = state.get(selector);
+      const newSubState = selector.reducerFn(subState, action, readSelector);
+      newState.set(selector, newSubState);
+    });
+    return newState;
+  }, new WeakMap(), state => {
+    baseSelectors.forEach(selector => state.set(selector, ctxReadSelector(selector, EMPTY).getValue()));
+    return state;
+  });
+  useEffect(() => {
+    const subscription = action$.subscribe(reactDispatch);
+    return () => subscription.unsubscribe();
+  }, [action$]);
+  return readSelector(selector, prop$).getValue();
 }
