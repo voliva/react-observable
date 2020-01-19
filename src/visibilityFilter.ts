@@ -1,4 +1,4 @@
-import { createActionCreator, createStore } from "./react-observable";
+import { createStore, createStandardAction } from "./react-observable";
 
 export enum TodoFilter {
   SHOW_ALL = "SHOW_ALL",
@@ -6,16 +6,15 @@ export enum TodoFilter {
   SHOW_ACTIVE = "SHOW_ACTIVE"
 }
 
-const setVisibilityFilter = createActionCreator(
-  "setVisibilityFilter",
-  (filter: TodoFilter) => ({ filter })
+const setVisibilityFilter = createStandardAction<TodoFilter>(
+  "setVisibilityFilter"
 );
 
 const [getVisibilityFilter, visibilityFilterStore] = createStore<TodoFilter>(
   TodoFilter.SHOW_ALL,
   (state, action) => {
     if (setVisibilityFilter.isCreatorOf(action)) {
-      return action.filter;
+      return action.payload;
     }
     return state;
   }

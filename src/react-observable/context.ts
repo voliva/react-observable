@@ -16,6 +16,7 @@ import {
   Selector
 } from "./selectors";
 import { Store } from "./store";
+import { useInstanceValue } from "./lib";
 
 interface ReactObservableContext {
   dispatch: (action: Action) => void;
@@ -28,19 +29,20 @@ const ctx = createContext<ReactObservableContext | undefined>(undefined);
 export const Provider: FC<{
   store: Store;
 }> = ({ store, children }) => {
-  const { baseSelectors } = store;
-  const [action$, dispatch] = useMemo(() => {
+  const [action$, dispatch] = useInstanceValue(() => {
     const subject = new Subject<Action>();
     const action$ = subject.asObservable();
     const dispatch = subject.next.bind(subject);
     return [action$, dispatch] as [typeof action$, typeof dispatch];
-  }, []);
+  });
+
+  const { baseSelectors } = store;
 
   const selectorSubjects = useMemo(() => {
     const map = new WeakMap<Selector<any>, ImmediateObservable<any>>();
     baseSelectors.forEach(selector => map.set(selector, selector()));
     return map;
-  }, []);
+  }, [baseSelectors]);
 
   const readSelector: ReadSelectorFnType = <P, T>(
     selector: Selector<T> | ParametricSelector<P, T>,
@@ -59,10 +61,10 @@ export const Provider: FC<{
       baseSelectors,
       action$
     }),
-    []
+    [baseSelectors]
   );
 
-  useEffect(() => store.connect(action$, dispatch, readSelector), []);
+  useEffect(() => store.connect(action$, dispatch, readSelector), [store]);
 
   return createElement(
     ctx.Provider,

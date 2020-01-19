@@ -1,17 +1,21 @@
-import { useRef, useMemo, useEffect } from "react";
-import { ImmediateObservable } from "./observables";
+import { useEffect, useRef } from "react";
 import { BehaviorSubject } from "rxjs";
+import { ImmediateObservable } from "./observables";
 
-export const useLazyRef = <T>(fn: () => T) => {
-  const ref = useRef<T>();
+export type ArgumentTypes<T> = T extends (...args: infer U) => infer R
+  ? U
+  : never;
+
+export const useInstanceValue = <T>(fn: () => T) => {
+  const ref = useRef<T>((undefined as any) as T);
   if (ref.current === undefined) {
     ref.current = fn();
   }
-  return ref;
+  return ref.current;
 };
 
 export const usePropsObservable = <T>(props: T): ImmediateObservable<T> => {
-  const propSubject = useMemo(() => new BehaviorSubject(props), []);
+  const propSubject = useInstanceValue(() => new BehaviorSubject(props));
 
   useEffect(() => {
     propSubject.next(props);

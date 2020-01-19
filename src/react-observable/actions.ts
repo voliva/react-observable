@@ -1,3 +1,5 @@
+import { ArgumentTypes } from "./lib";
+
 export interface Action {
   type: symbol;
 }
@@ -32,7 +34,11 @@ export function createActionCreator<TFn extends (...args: any[]) => any>(
   return ret;
 }
 
-export const createStandardAction = (name: string) => <TPayload>() =>
-  createActionCreator(name, (payload: TPayload) => ({ payload }));
-
-type ArgumentTypes<T> = T extends (...args: infer U) => infer R ? U : never;
+export const createStandardAction = <TPayload = undefined>(name: string) => {
+  type PayloadFn = TPayload extends undefined
+    ? () => {}
+    : (payload: TPayload) => { payload: TPayload };
+  return createActionCreator(name, ((payload: TPayload) => ({
+    payload
+  })) as PayloadFn);
+};

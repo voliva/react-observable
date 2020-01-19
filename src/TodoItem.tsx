@@ -18,7 +18,7 @@ const TodoItem: FC<{
     if (text.length === 0) {
       handleDelete(todo.id);
     } else {
-      handleEdit(todo.id, text);
+      handleEdit({ id: todo.id, text });
     }
     setEditing(false);
   };

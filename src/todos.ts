@@ -1,35 +1,21 @@
 import {
   createActionCreator,
   createStore,
-  createSelector
+  createSelector,
+  createStandardAction
 } from "./react-observable";
 import { getVisibilityFilter, TodoFilter } from "./visibilityFilter";
 
-export const addTodo = createActionCreator("addTodo", (text: string) => ({
-  text
-}));
-
-export const deleteTodo = createActionCreator("deleteTodo", (id: number) => ({
-  id
-}));
-
-export const editTodo = createActionCreator(
-  "editTodo",
-  (id: number, text: string) => ({
-    id,
-    text
-  })
+export const addTodo = createStandardAction<string>("addTodo");
+export const deleteTodo = createStandardAction<number>("deleteTodo");
+export const editTodo = createStandardAction<{ id: number; text: string }>(
+  "editTodo"
 );
 
-export const completeTodo = createActionCreator(
-  "completeTodo",
-  (id: number) => ({
-    id
-  })
-);
+export const completeTodo = createStandardAction<number>("completeTodo");
 
-export const completeAllTodos = createActionCreator("completeAll");
-export const clearCompleted = createActionCreator("clearCompleted");
+export const completeAllTodos = createStandardAction("completeAll");
+export const clearCompleted = createStandardAction("clearCompleted");
 
 type State = Array<{
   text: string;
@@ -44,21 +30,25 @@ const [getTodos, todosStore] = createStore<State>([], (state, action) => {
       {
         id: state.reduce((maxId, todo) => Math.max(todo.id, maxId), -1) + 1,
         completed: false,
-        text: action.text
+        text: action.payload
       }
     ];
   }
   if (deleteTodo.isCreatorOf(action)) {
-    return state.filter(todo => todo.id !== action.id);
+    return state.filter(todo => todo.id !== action.payload);
   }
   if (editTodo.isCreatorOf(action)) {
     return state.map(todo =>
-      todo.id === action.id ? { ...todo, text: action.text } : todo
+      todo.id === action.payload.id
+        ? { ...todo, text: action.payload.text }
+        : todo
     );
   }
   if (completeTodo.isCreatorOf(action)) {
     return state.map(todo =>
-      todo.id === action.id ? { ...todo, completed: !todo.completed } : todo
+      todo.id === action.payload
+        ? { ...todo, completed: !todo.completed }
+        : todo
     );
   }
   if (completeAllTodos.isCreatorOf(action)) {

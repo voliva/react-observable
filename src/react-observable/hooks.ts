@@ -1,10 +1,10 @@
-import { useContext, useEffect, useMemo, useReducer, useState } from "react";
-import { BehaviorSubject, EMPTY } from "rxjs";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import { EMPTY } from "rxjs";
 import { Action, ActionCreator } from "./actions";
 import { useReactObservable } from "./context";
-import { ImmediateObservable } from "./observables";
-import { ParametricSelector, Selector, ReadSelectorFnType } from "./selectors";
 import { usePropsObservable } from "./lib";
+import { ImmediateObservable } from "./observables";
+import { ParametricSelector, ReadSelectorFnType, Selector } from "./selectors";
 
 export const useAction = <TArg extends Array<any>, TAction extends Action>(
   actionCreator: ActionCreator<TArg, TAction>
@@ -26,7 +26,11 @@ export function useSelector<P, T>(
 ): T {
   const { readSelector } = useReactObservable();
   const prop$ = usePropsObservable(props!);
-  const state$ = useMemo(() => readSelector(selector, prop$), [selector]);
+  const state$ = useMemo(() => readSelector(selector, prop$), [
+    selector,
+    readSelector,
+    prop$
+  ]);
   const [state, setState] = useState<T>(() => state$.getValue());
 
   useEffect(() => {
