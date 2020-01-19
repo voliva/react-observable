@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useMemo, useState, useReducer, useCallback } from "react";
+import { createContext, createElement, useContext, useEffect, useMemo, useState } from "react";
 import { BehaviorSubject, combineLatest, EMPTY, Subject } from "rxjs";
 import { distinctUntilChanged, map, scan } from "rxjs/operators";
 export function createActionCreator(s, fn) {
@@ -65,47 +65,30 @@ export function combineStores(stores) {
 const ctx = createContext(undefined);
 export const Provider = ({ store, children }) => {
   const { baseSelectors } = store;
-  const actionSubject = useMemo(() => new Subject(), []);
+  const [action$, dispatch] = useMemo(() => {
+    const subject = new Subject();
+    const action$ = subject.asObservable();
+    const dispatch = subject.next.bind(subject);
+    return [action$, dispatch];
+  }, []);
+  const selectorSubjects = useMemo(() => {
+    const map = new WeakMap();
+    baseSelectors.forEach(selector => map.set(selector, selector()));
+    return map;
+  }, []);
   const readSelector = (selector, prop$) => {
     if (!baseSelectors.includes(selector)) {
       return selector(prop$, readSelector);
     }
-    if (!selectorSubjects.has(selector)) {
-      const subject = new BehaviorSubject(reactState.get(selector));
-      selectorSubjects.set(selector, subject);
-    }
     return selectorSubjects.get(selector);
   };
-  const [reactState, reactDispatch] = useReducer((state, action) => {
-    const newState = new WeakMap();
-    baseSelectors.forEach(selector => newState.set(selector, selector.reducerFn(state.get(selector), action, readSelector)));
-    return newState;
-  }, new WeakMap(), state => {
-    baseSelectors.forEach(selector => state.set(selector, selector.initialState));
-    return state;
-  });
-  const dispatch = useCallback((action) => {
-    actionSubject.next(action);
-    reactDispatch(action);
-  }, [actionSubject]);
-  const selectorSubjects = useMemo(() => new WeakMap(), []);
-  useEffect(() => {
-    store.connect(actionSubject.asObservable(), dispatch, readSelector);
-  }, []);
-  useEffect(() => {
-    console.log(reactState);
-    baseSelectors.forEach(selector => {
-      var _a;
-      if (selectorSubjects.has(selector)) {
-        (_a = selectorSubjects.get(selector)) === null || _a === void 0 ? void 0 : _a.next(reactState.get(selector));
-      }
-    });
-  }, [reactState]);
+  const value = useMemo(() => ({
+    dispatch,
+    readSelector
+  }), []);
+  useEffect(() => store.connect(action$, dispatch, readSelector), []);
   return createElement(ctx.Provider, {
-    value: {
-      dispatch,
-      readSelector
-    }
+    value
   }, children);
 };
 export const Consumer = ctx.Consumer;

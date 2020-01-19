@@ -214,73 +214,40 @@ export const Provider: FC<{
   store: Store;
 }> = ({ store, children }) => {
   const { baseSelectors } = store;
-  const actionSubject = useMemo(() => new Subject<Action>(), []);
+  const [action$, dispatch] = useMemo(() => {
+    const subject = new Subject<Action>();
+    const action$ = subject.asObservable();
+    const dispatch = subject.next.bind(subject);
+    return [action$, dispatch] as [typeof action$, typeof dispatch];
+  }, []);
+
+  const selectorSubjects = useMemo(() => {
+    const map = new WeakMap<Selector<any>, ImmediateObservable<any>>();
+    baseSelectors.forEach(selector => map.set(selector, selector()));
+    return map;
+  }, []);
 
   const readSelector: ReadSelector = (selector, prop$) => {
     if (!baseSelectors.includes(selector as any)) {
       return (selector as any)(prop$, readSelector);
     }
-    if (!selectorSubjects.has(selector as any)) {
-      const subject = new BehaviorSubject(reactState.get(selector as any));
-      selectorSubjects.set(selector as any, subject);
-    }
-    return selectorSubjects.get(selector as any);
+    return selectorSubjects.get(selector as any)!;
   };
 
-  const [reactState, reactDispatch] = useReducer(
-    (state: WeakMap<Selector<any>, any>, action: Action) => {
-      const newState = new WeakMap<Selector<any>, any>();
-      baseSelectors.forEach(selector =>
-        newState.set(
-          selector,
-          selector.reducerFn(state.get(selector), action, readSelector)
-        )
-      );
-      return newState;
-    },
-    new WeakMap<Selector<any>, any>(),
-    state => {
-      baseSelectors.forEach(selector =>
-        state.set(selector, selector.initialState)
-      );
-      return state;
-    }
-  );
-
-  const dispatch = useCallback(
-    (action: Action) => {
-      actionSubject.next(action);
-      reactDispatch(action);
-    },
-    [actionSubject]
-  );
-
-  const selectorSubjects = useMemo(
-    () => new WeakMap<Selector<any>, BehaviorSubject<any>>(),
+  const value = useMemo(
+    () => ({
+      dispatch,
+      readSelector
+    }),
     []
   );
 
-  useEffect(() => {
-    store.connect(actionSubject.asObservable(), dispatch, readSelector);
-  }, []);
-
-  useEffect(() => {
-    console.log(reactState);
-
-    baseSelectors.forEach(selector => {
-      if (selectorSubjects.has(selector)) {
-        selectorSubjects.get(selector)?.next(reactState.get(selector));
-      }
-    });
-  }, [reactState]);
+  useEffect(() => store.connect(action$, dispatch, readSelector), []);
 
   return createElement(
     ctx.Provider,
     {
-      value: {
-        dispatch,
-        readSelector
-      }
+      value
     },
     children
   );

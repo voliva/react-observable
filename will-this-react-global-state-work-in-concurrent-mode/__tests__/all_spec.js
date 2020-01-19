@@ -3,7 +3,7 @@
 const port = process.env.PORT || '8080';
 
 const names = [
-  'salvoravida-react-redux',
+  'react-observable',
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
