@@ -1,0 +1,79 @@
+{
+  "name": "will-this-react-global-state-work-in-concurrent-mode",
+  "description": "Checking tearing in React concurrent mode",
+  "private": true,
+  "version": "0.1.0",
+  "author": "Daishi Kato",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dai-shi/will-this-react-global-state-work-in-concurrent-mode.git"
+  },
+  "scripts": {
+    "test": "npm run eslint",
+    "eslint": "eslint --ignore-pattern dist .",
+    "jest": "cross-env PORT=8080 BABEL_ENV=jest jest",
+    "dev-server": "cross-env PORT=8080 webpack-dev-server",
+    "http-server": "cross-env PORT=8080 http-server dist",
+    "build:react-state": "cross-env NAME=react-state webpack",
+    "build:react-redux": "cross-env NAME=react-redux webpack",
+    "build:react-observable": "cross-env NAME=react-observable webpack",
+    "build-all": "run-s build:*"
+  },
+  "keywords": [
+    "react",
+    "context",
+    "hooks"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@simplux/core": "^0.11.1",
+    "@simplux/react": "^0.11.1",
+    "react": "experimental",
+    "react-dom": "experimental",
+    "react-hooks-global-state": "^0.17.0",
+    "react-redux": "^7.1.3",
+    "redux": "^4.0.5"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.7.7",
+    "@babel/core": "^7.7.7",
+    "@babel/preset-env": "^7.7.7",
+    "@babel/preset-react": "^7.7.4",
+    "babel-loader": "^8.0.6",
+    "cross-env": "^6.0.3",
+    "eslint": "^6.8.0",
+    "eslint-config-airbnb": "^18.0.1",
+    "eslint-plugin-import": "^2.19.1",
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-react": "^7.17.0",
+    "eslint-plugin-react-hooks": "^2.3.0",
+    "html-webpack-plugin": "^3.2.0",
+    "http-server": "^0.12.1",
+    "jest": "^24.9.0",
+    "jest-puppeteer": "^4.4.0",
+    "npm-run-all": "^4.1.5",
+    "puppeteer": "^2.0.0",
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10",
+    "webpack-dev-server": "^3.10.1"
+  },
+  "babel": {
+    "env": {
+      "development": {
+        "presets": [
+          [
+            "@babel/preset-env",
+            {
+              "targets": "> 0.2%, not dead"
+            }
+          ],
+          "@babel/preset-react"
+        ]
+      },
+      "jest": {}
+    }
+  },
+  "jest": {
+    "preset": "jest-puppeteer"
+  }
+}
