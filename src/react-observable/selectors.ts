@@ -1,7 +1,6 @@
-import { ImmediateObservable } from "./observables";
-import { Action } from "./actions";
 import { combineLatest } from "rxjs";
-import { map, distinctUntilChanged } from "rxjs/operators";
+import { distinctUntilChanged, map } from "rxjs/operators";
+import { ImmediateObservable } from "./lib";
 
 export type Selector<T> = (args?: {
   readSelector?: ReadSelectorFnType;
@@ -19,11 +18,6 @@ export interface ReadSelectorFnType {
     prop$: ImmediateObservable<P>
   ): ImmediateObservable<T>;
 }
-
-export type BaseSelector<T> = Selector<T> & {
-  initialState: T;
-  reducerFn: (state: T, action: Action, readSelector: ReadSelectorFnType) => T;
-};
 
 export const defaultReadSelector: ReadSelectorFnType = <P, T>(
   selector: Selector<T> | ParametricSelector<P, T>,

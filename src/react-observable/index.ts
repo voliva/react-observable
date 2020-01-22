@@ -1,6 +1,5 @@
 export * from "./actions";
 export * from "./context";
-export * from "./hooks";
-export * from "./observables";
+export * from "./selectorHooks";
 export * from "./selectors";
 export * from "./store";

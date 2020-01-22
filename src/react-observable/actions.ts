@@ -1,4 +1,5 @@
 import { ArgumentTypes } from "./lib";
+import { useReactObservable } from "./context";
 
 export interface Action {
   type: symbol;
@@ -41,4 +42,11 @@ export const createStandardAction = <TPayload = undefined>(name: string) => {
   return createActionCreator(name, ((payload: TPayload) => ({
     payload
   })) as PayloadFn);
+};
+
+export const useAction = <TArg extends Array<any>, TAction extends Action>(
+  actionCreator: ActionCreator<TArg, TAction>
+) => {
+  const { dispatch } = useReactObservable();
+  return (...args: TArg) => dispatch(actionCreator(...args));
 };

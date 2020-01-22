@@ -4,31 +4,39 @@ import {
   FC,
   useContext,
   useEffect,
-  useMemo
+  useRef
 } from "react";
 import { Observable, Subject } from "rxjs";
 import { Action } from "./actions";
-import { ImmediateObservable } from "./observables";
+import { ImmediateObservable, useInstanceValue } from "./lib";
 import {
-  BaseSelector,
+  defaultReadSelector,
   ParametricSelector,
   ReadSelectorFnType,
   Selector
 } from "./selectors";
-import { Store } from "./store";
-import { useInstanceValue } from "./lib";
+import { BaseSelector, Store, StoreRef } from "./store";
 
 interface ReactObservableContext {
   dispatch: (action: Action) => void;
   readSelector: ReadSelectorFnType;
-  baseSelectors: BaseSelector<any>[];
   action$: Observable<Action>;
+  registerStore: (store: Store) => void;
 }
 
 const ctx = createContext<ReactObservableContext | undefined>(undefined);
+export const Consumer = ctx.Consumer;
+export const useReactObservable = () => useContext(ctx)!;
+
+export const useRegisterStores = (stores: Store[]) => {
+  const { registerStore } = useReactObservable();
+
+  useEffect(() => stores.forEach(registerStore), []);
+};
+
 export const Provider: FC<{
-  store: Store;
-}> = ({ store, children }) => {
+  stores?: Store[];
+}> = ({ stores = [], children }) => {
   const [action$, dispatch] = useInstanceValue(() => {
     const subject = new Subject<Action>();
     const action$ = subject.asObservable();
@@ -36,35 +44,57 @@ export const Provider: FC<{
     return [action$, dispatch] as [typeof action$, typeof dispatch];
   });
 
-  const { baseSelectors } = store;
-
-  const selectorSubjects = useMemo(() => {
-    const map = new WeakMap<Selector<any>, ImmediateObservable<any>>();
-    baseSelectors.forEach(selector => map.set(selector, selector()));
-    return map;
-  }, [baseSelectors]);
+  const connectedStores = useRef<Map<Store, StoreRef>>(new Map());
 
   const readSelector: ReadSelectorFnType = <P, T>(
-    selector: Selector<T> | ParametricSelector<P, T>,
+    selector: Selector<T> | ParametricSelector<P, T> | BaseSelector<T>,
     prop$?: ImmediateObservable<P>
   ) => {
-    if (!baseSelectors.includes(selector as any)) {
-      return selector({ prop$: prop$!, readSelector });
+    if ("store" in selector && !connectedStores.current.has(selector.store)) {
+      console.warn(
+        // TODO Maybe throw instead?
+        "selector tried to access a store not registered - Registering it.",
+        selector,
+        selector.store
+      );
+      registerStore(selector.store);
     }
-    return selectorSubjects.get(selector as any)!;
+    return selector({ prop$: prop$!, readSelector });
   };
 
-  const value = useMemo(
-    () => ({
-      dispatch,
-      readSelector,
-      baseSelectors,
-      action$
-    }),
-    [baseSelectors]
-  );
+  const registerStore = (store: Store) => {
+    if (connectedStores.current.has(store)) {
+      return;
+    }
+    connectedStores.current.set(store, store.connect(dispatch, readSelector));
+  };
 
-  useEffect(() => store.connect(action$, dispatch, readSelector), [store]);
+  const value = useInstanceValue<ReactObservableContext>(() => ({
+    dispatch,
+    readSelector,
+    action$,
+    registerStore
+  }));
+
+  useEffect(() => stores.forEach(registerStore), []);
+
+  useEffect(() => {
+    const actionSubscription = action$.subscribe(action => {
+      const storeRefs = [...connectedStores.current.values()];
+      const commitFns = storeRefs.map(ref => ref.updateState(action));
+      commitFns.forEach(fn => fn());
+
+      storeRefs.forEach(ref => ref.runEffect(action));
+    });
+    return () => actionSubscription.unsubscribe();
+  }, []);
+
+  // Close all stores when Provider is dismounted
+  useEffect(
+    () => () =>
+      [...connectedStores.current.values()].forEach(ref => ref.disconnect()),
+    []
+  );
 
   return createElement(
     ctx.Provider,
@@ -74,6 +104,3 @@ export const Provider: FC<{
     children
   );
 };
-
-export const Consumer = ctx.Consumer;
-export const useReactObservable = () => useContext(ctx)!;

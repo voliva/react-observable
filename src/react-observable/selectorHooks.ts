@@ -1,17 +1,9 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { EMPTY } from "rxjs";
-import { Action, ActionCreator } from "./actions";
+import { Action, createActionCreator } from "./actions";
 import { useReactObservable } from "./context";
-import { usePropsObservable } from "./lib";
-import { ImmediateObservable } from "./observables";
+import { ImmediateObservable, usePropsObservable } from "./lib";
 import { ParametricSelector, ReadSelectorFnType, Selector } from "./selectors";
-
-export const useAction = <TArg extends Array<any>, TAction extends Action>(
-  actionCreator: ActionCreator<TArg, TAction>
-) => {
-  const { dispatch } = useReactObservable();
-  return (...args: TArg) => dispatch(actionCreator(...args));
-};
+import { BaseSelector, Store } from "./store";
 
 export function useSelector<T>(
   selector: Selector<T> | ParametricSelector<undefined | {}, T>
@@ -53,48 +45,49 @@ export function useBranchingStateSelector<P, T>(
   selector: Selector<T> | ParametricSelector<P, T>,
   props?: P
 ): T {
-  const {
-    readSelector: ctxReadSelector,
-    baseSelectors,
-    action$
-  } = useReactObservable();
+  const { readSelector: ctxReadSelector, action$ } = useReactObservable();
   const prop$ = usePropsObservable(props!);
 
   const readSelector: ReadSelectorFnType = <P, T>(
-    selector: Selector<T> | ParametricSelector<P, T>,
+    selector: Selector<T> | ParametricSelector<P, T> | BaseSelector<T>,
     prop$?: ImmediateObservable<P>
   ) => {
-    if (!baseSelectors.includes(selector as any)) {
-      return selector({ prop$: prop$!, readSelector });
-    }
-    return Object.assign(
-      selector({
-        prop$: EMPTY as any,
-        readSelector
-      }),
-      {
-        getValue: () => reactState.get(selector as any)
+    const baseStream = selector({ prop$: prop$!, readSelector }); // It doesn't really matter - In here we're just getting immediate values
+
+    if ("store" in selector) {
+      if (!reactState.has(selector.store)) {
+        const value = ctxReadSelector(selector).getValue();
+
+        reactDispatch(registerLocalStore(selector.store, value));
+        return Object.assign(baseStream, {
+          getValue: () => value
+        });
       }
-    );
+      return Object.assign(baseStream, {
+        getValue: () => reactState.get(selector.store)
+      });
+    }
+    return baseStream;
   };
 
   const [reactState, reactDispatch] = useReducer(
-    (state: WeakMap<Selector<any>, any>, action: Action) => {
-      const newState = new WeakMap<Selector<any>, any>();
-      baseSelectors.forEach(selector => {
-        const subState = state.get(selector);
-        const newSubState = selector.reducerFn(subState, action, readSelector);
-        newState.set(selector, newSubState);
-      });
-      return newState;
+    (state: Map<Store, any>, action: Action) => {
+      let hasChanged = false;
+
+      const newState = new Map<Store, any>();
+      if (registerLocalStore.isCreatorOf(action)) {
+        hasChanged = true;
+        newState.set(action.store, action.value);
+      }
+      for (let store of state.keys()) {
+        const subState = state.get(store);
+        const newSubState = store.reducerFn(subState, action, readSelector);
+        hasChanged = hasChanged || subState !== newSubState;
+        newState.set(store, newSubState);
+      }
+      return hasChanged ? newState : state;
     },
-    new WeakMap<Selector<any>, any>(),
-    state => {
-      baseSelectors.forEach(selector =>
-        state.set(selector, ctxReadSelector(selector, EMPTY as any).getValue())
-      );
-      return state;
-    }
+    new Map<Store, any>()
   );
 
   useEffect(() => {
@@ -104,3 +97,8 @@ export function useBranchingStateSelector<P, T>(
 
   return readSelector(selector, prop$).getValue();
 }
+
+const registerLocalStore = createActionCreator(
+  "register local store",
+  (store: Store, value: any) => ({ store, value })
+);

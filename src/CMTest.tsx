@@ -10,7 +10,7 @@ import { Subject } from "rxjs";
 import { map } from "rxjs/operators";
 
 const increment = createActionCreator("increment");
-const [getCounter, counterStore] = createStore(
+const [getCounter] = createStore(
   0,
   (state, action) => {
     if (increment.isCreatorOf(action)) {
@@ -27,7 +27,7 @@ const [getCounter, counterStore] = createStore(
 
 export function CMTest() {
   return (
-    <Provider store={counterStore}>
+    <Provider>
       <App />
     </Provider>
   );
