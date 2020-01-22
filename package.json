@@ -1,42 +1,26 @@
 {
-  "name": "react-observable",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "@voliva/react-observable",
+  "version": "1.0.0-a1",
+  "main": "dist/index.js",
   "license": "MIT",
   "dependencies": {
-    "classnames": "^2.2.6",
-    "react": "^0.0.0-experimental-f42431abe",
-    "react-dom": "^0.0.0-experimental-f42431abe",
-    "react-scripts": "3.3.0",
-    "rxjs": "^6.5.4",
-    "todomvc-app-css": "^2.3.0",
-    "todomvc-common": "^1.0.5"
+    "rxjs": "^6.5.4"
   },
+  "types": "dist/index.d.ts",
   "eslintConfig": {
     "extends": "react-app"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "build": "rollup --config && yarn tsc"
+  },
+  "peerDependencies": {
+    "react": "^16.12.0"
   },
   "devDependencies": {
-    "@types/classnames": "^2.2.9",
+    "@rollup/plugin-typescript": "^2.1.0",
     "@types/react": "^16.9.0",
-    "@types/react-dom": "^16.9.0",
+    "rollup": "^1.29.1",
+    "tslib": "^1.10.0",
     "typescript": "~3.7.2"
   }
 }

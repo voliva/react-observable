@@ -28,6 +28,7 @@
   "dependencies": {
     "@simplux/core": "^0.11.1",
     "@simplux/react": "^0.11.1",
+    "@voliva/react-observable": "^1.0.0-a1",
     "react": "experimental",
     "react-dom": "experimental",
     "react-hooks-global-state": "^0.17.0",

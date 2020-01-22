@@ -1,5 +1,5 @@
 import React from "react";
-import { useSelector } from "./react-observable";
+import { useSelector } from "@voliva/react-observable";
 import { getVisibleTodos } from "./todos";
 import TodoItem from "./TodoItem";
 

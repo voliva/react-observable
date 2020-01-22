@@ -5,7 +5,7 @@ import {
   useBranchingStateSelector,
   useAction,
   Provider
-} from "./react-observable";
+} from "@voliva/react-observable";
 import { Subject } from "rxjs";
 import { map } from "rxjs/operators";
 

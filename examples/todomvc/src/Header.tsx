@@ -1,4 +1,4 @@
-import { useAction } from "./react-observable";
+import { useAction } from "@voliva/react-observable";
 import { addTodo } from "./todos";
 import React from "react";
 import { TodoTextInput } from "./TodoTextInput";

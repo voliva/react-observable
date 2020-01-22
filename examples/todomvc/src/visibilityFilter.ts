@@ -1,4 +1,4 @@
-import { createStore, createStandardAction } from "./react-observable";
+import { createStore, createStandardAction } from "@voliva/react-observable";
 
 export enum TodoFilter {
   SHOW_ALL = "SHOW_ALL",

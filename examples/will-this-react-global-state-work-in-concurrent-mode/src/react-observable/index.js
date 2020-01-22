@@ -1,5 +1,5 @@
 import React, { useTransition } from 'react';
-import { createStore, Provider, useSelector, useDispatch, createActionCreator, createSelector, useBranchingStateSelector } from './react-observable';
+import { createStore, Provider, useSelector, useAction, createActionCreator, createSelector, useBranchingStateSelector } from '@voliva/react-observable';
 
 import {
   syncBlock,
@@ -40,20 +40,20 @@ const Counter = React.memo(() => {
 }, shallowEqual);
 
 const Main = () => {
-  const dispatch = useDispatch();
+  const dispatchIncrement = useAction(increment);
   const count = useBranchingStateSelector(getCount);
   useCheckTearing();
   useRegisterIncrementDispatcher(React.useCallback(() => {
-    dispatch(increment());
-  }, [dispatch]));
+    dispatchIncrement();
+  }, [dispatchIncrement]));
   const [localCount, localIncrement] = React.useReducer((c) => c + 1, 0);
   const normalIncrement = () => {
-    dispatch(increment());
+    dispatchIncrement();
   };
   const [startTransition, isPending] = useTransition();
   const transitionIncrement = () => {
     startTransition(() => {
-      dispatch(increment());
+      dispatchIncrement();
     });
   };
   return (
@@ -72,7 +72,7 @@ const Main = () => {
 };
 
 const App = () => (
-  <Provider store={store}>
+  <Provider>
     <Main />
   </Provider>
 );

@@ -1,5 +1,5 @@
 import React from "react";
-import { useSelector, useAction } from "./react-observable";
+import { useSelector, useAction } from "@voliva/react-observable";
 import {
   getCompletedTodoCount,
   getTodosCount,

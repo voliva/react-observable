@@ -1,9 +1,8 @@
 import {
-  createActionCreator,
   createStore,
   createSelector,
   createStandardAction
-} from "./react-observable";
+} from "@voliva/react-observable";
 import { getVisibilityFilter, TodoFilter } from "./visibilityFilter";
 
 export const addTodo = createStandardAction<string>("addTodo");

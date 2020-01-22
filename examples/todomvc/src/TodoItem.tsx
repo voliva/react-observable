@@ -1,7 +1,7 @@
 import React, { FC, useState } from "react";
 import classnames from "classnames";
 import TodoTextInput from "./TodoTextInput";
-import { useAction } from "./react-observable";
+import { useAction } from "@voliva/react-observable";
 import { editTodo, deleteTodo, completeTodo } from "./todos";
 
 const TodoItem: FC<{
