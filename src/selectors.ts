@@ -63,24 +63,27 @@ export function createSelector<T>(
   };
 }
 
-export function createPropSelector<T, K extends string>(
+export function createPropSelector<TProps, TRet>(
+  propFn: (props: TProps) => TRet
+): ParametricSelector<TProps, TRet> {
+  return ({ prop$ }) => {
+    const stream = prop$.pipe(map(propFn), distinctUntilChanged());
+
+    return Object.assign(stream, {
+      getValue: () => propFn(prop$.getValue())
+    });
+  };
+}
+
+export function createTypedPropSelector<K extends string>(
   propName: K
-): ParametricSelector<
+): <T>() => ParametricSelector<
   {
     [key in K]: T;
   },
   T
 > {
-  return ({ prop$ }) => {
-    const stream = prop$.pipe(
-      map(props => props[propName]),
-      distinctUntilChanged()
-    );
-
-    return Object.assign(stream, {
-      getValue: () => prop$.getValue()[propName]
-    });
-  };
+  return () => createPropSelector(props => props[propName]);
 }
 
 export function mapSelectorProps<PSelector, PMap, T>(

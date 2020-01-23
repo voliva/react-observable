@@ -1,7 +1,7 @@
 import { ArgumentTypes } from "./lib";
 import { useReactObservable } from "./context";
 import { useEffect } from "react";
-import { filter } from "rxjs/operators";
+import { filter, take } from "rxjs/operators";
 
 export interface Action {
   type: symbol;
@@ -59,16 +59,20 @@ export const filterAction = <A extends Action>(
 
 export const useDispatchedAction = <TAction extends Action>(
   actionCreator: ActionCreator<any, TAction>,
-  handler: (action: TAction) => void
-) => {
+  handler?: (action: TAction) => void
+): (() => Promise<TAction>) => {
   const { action$ } = useReactObservable();
 
   useEffect(() => {
+    if (!handler) return;
+
     const subscription = action$
       .pipe(filterAction(actionCreator))
       .subscribe(handler);
     return () => subscription.unsubscribe();
   }, [actionCreator, handler]);
+
+  return () => action$.pipe(take(1), filterAction(actionCreator)).toPromise();
 };
 
 interface Case {
