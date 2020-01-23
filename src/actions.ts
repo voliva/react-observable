@@ -1,5 +1,7 @@
 import { ArgumentTypes } from "./lib";
 import { useReactObservable } from "./context";
+import { useEffect } from "react";
+import { filter } from "rxjs/operators";
 
 export interface Action {
   type: symbol;
@@ -49,4 +51,46 @@ export const useAction = <TArg extends Array<any>, TAction extends Action>(
 ) => {
   const { dispatch } = useReactObservable();
   return (...args: TArg) => dispatch(actionCreator(...args));
+};
+
+export const filterAction = <A extends Action>(
+  actionCreator: ActionCreator<any, A>
+) => filter(actionCreator.isCreatorOf);
+
+export const useDispatchedAction = <TAction extends Action>(
+  actionCreator: ActionCreator<any, TAction>,
+  handler: (action: TAction) => void
+) => {
+  const { action$ } = useReactObservable();
+
+  useEffect(() => {
+    const subscription = action$
+      .pipe(filterAction(actionCreator))
+      .subscribe(handler);
+    return () => subscription.unsubscribe();
+  }, [actionCreator, handler]);
+};
+
+interface Case {
+  actionCreator: ActionCreator<any, any>;
+  resultFn: (action: any) => any;
+}
+export const switchAction = <T>(
+  action: Action,
+  caseFn: (
+    typeCase: <A extends Action>(
+      actionCreator: ActionCreator<any, A>,
+      resultFn: (action: A) => T
+    ) => Case
+  ) => Array<Case>,
+  defaultValue: T
+): T => {
+  const cases = caseFn((actionCreator, resultFn) => ({
+    actionCreator,
+    resultFn
+  }));
+  const matchingCase = cases.find(
+    typeCase => typeCase.actionCreator.actionType === action.type
+  );
+  return matchingCase ? matchingCase.resultFn(action) : defaultValue;
 };

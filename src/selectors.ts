@@ -1,5 +1,5 @@
 import { combineLatest } from "rxjs";
-import { distinctUntilChanged, map } from "rxjs/operators";
+import { distinctUntilChanged, map, switchMap } from "rxjs/operators";
 import { ImmediateObservable } from "./lib";
 
 export type Selector<T> = (args?: {
@@ -50,7 +50,7 @@ export function createSelector<T>(
   }: {
     prop$?: ImmediateObservable<any>;
     readSelector?: ReadSelectorFnType;
-  }) => {
+  } = {}) => {
     const depStreams = deps.map(dep => readSelector(dep, prop$!));
     const stream = combineLatest(depStreams).pipe(
       map(deps => computeFn(...deps)),
@@ -79,6 +79,54 @@ export function createPropSelector<T, K extends string>(
 
     return Object.assign(stream, {
       getValue: () => prop$.getValue()[propName]
+    });
+  };
+}
+
+export function mapSelectorProps<PSelector, PMap, T>(
+  selector: ParametricSelector<PSelector, T>,
+  mapFn: (props: PMap) => PSelector
+): ParametricSelector<PMap, T> {
+  return ({
+    prop$,
+    readSelector = defaultReadSelector
+  }: {
+    prop$: ImmediateObservable<any>;
+    readSelector?: ReadSelectorFnType;
+  }) =>
+    selector({
+      prop$: Object.assign(prop$?.pipe(map(mapFn)), {
+        getValue: () => mapFn(prop$.getValue())
+      }),
+      readSelector
+    });
+}
+
+// TODO parametric selector
+export function selectSelector<T>(
+  selectingSelector: Selector<Selector<T>>
+): Selector<T> {
+  return ({
+    readSelector = defaultReadSelector
+  }: {
+    readSelector?: ReadSelectorFnType;
+  } = {}) => {
+    const selectingSelector$ = selectingSelector({
+      readSelector
+    });
+
+    const stream = selectingSelector$.pipe(
+      switchMap(selected =>
+        selected({
+          readSelector
+        })
+      )
+    );
+    return Object.assign(stream, {
+      getValue: () =>
+        selectingSelector$
+          .getValue()({ readSelector })
+          .getValue()
     });
   };
 }

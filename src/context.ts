@@ -9,12 +9,7 @@ import {
 import { Observable, Subject } from "rxjs";
 import { Action } from "./actions";
 import { ImmediateObservable, useInstanceValue } from "./lib";
-import {
-  defaultReadSelector,
-  ParametricSelector,
-  ReadSelectorFnType,
-  Selector
-} from "./selectors";
+import { ParametricSelector, ReadSelectorFnType, Selector } from "./selectors";
 import { BaseSelector, Store, StoreRef } from "./store";
 
 interface ReactObservableContext {

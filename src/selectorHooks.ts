@@ -9,7 +9,7 @@ export function useSelector<T>(
   selector: Selector<T> | ParametricSelector<undefined | {}, T>
 ): T;
 export function useSelector<P, T>(
-  selector: Selector<T> | ParametricSelector<P, T>,
+  selector: ParametricSelector<P, T>,
   props: P
 ): T;
 export function useSelector<P, T>(

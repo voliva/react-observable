@@ -1,6 +1,6 @@
 {
   "name": "@voliva/react-observable",
-  "version": "1.0.0-a1",
+  "version": "1.0.0-a3",
   "main": "dist/index.js",
   "license": "MIT",
   "dependencies": {
