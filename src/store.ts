@@ -82,6 +82,10 @@ export function createStore<T>(
   return [stateSelector, store] as [typeof stateSelector, Store];
 }
 
+export function createStatelessStore() {
+  return createStore(void 0, state => state)[1];
+}
+
 export const storeConnected = createActionCreator(
   "store connected",
   (store: Store) => ({ store })
