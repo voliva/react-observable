@@ -1,8 +1,6 @@
-import { BehaviorSubject, EMPTY, Observable, Subject } from "rxjs";
+import { BehaviorSubject, merge, Observable, Subject } from "rxjs";
 import { Action, createActionCreator } from "./actions";
 import { ReadSelectorFnType, Selector } from "./selectors";
-import { useReactObservable } from "./context";
-import { useEffect } from "react";
 
 export type BaseSelector<T> = Selector<T> & {
   store: Store;
@@ -14,25 +12,32 @@ export interface StoreRef {
   disconnect: () => void;
 }
 
-export interface Store<T = any> {
+export type Epic = (
+  action$: Observable<Action>,
+  readSelector: ReadSelectorFnType
+) => Observable<Action>;
+
+export interface Store {
   connect: (
     dispatch: (action: Action) => void,
     readSelector: ReadSelectorFnType
   ) => StoreRef;
-  reducerFn: (state: T, action: Action, readSelector: ReadSelectorFnType) => T;
+  reducerFn: (
+    state: any,
+    action: Action,
+    readSelector: ReadSelectorFnType
+  ) => any;
+  addEpic: (epic: Epic) => void;
 }
 
 export function createStore<T>(
   initialState: T,
-  reducerFn: (state: T, action: Action, readSelector: ReadSelectorFnType) => T,
-  effectFn: (
-    action$: Observable<Action>,
-    readSelector: ReadSelectorFnType
-  ) => Observable<Action> = () => EMPTY
+  reducerFn: (state: T, action: Action, readSelector: ReadSelectorFnType) => T
 ) {
   const stateSubject = new BehaviorSubject(initialState);
+  const epics: Epic[] = [];
 
-  const store: Store<T> = {
+  const store: Store = {
     connect: (dispatch, readSelector) => {
       const updateState = (action: Action) => {
         const oldState = stateSubject.getValue();
@@ -45,9 +50,9 @@ export function createStore<T>(
       };
 
       const action$ = new Subject<Action>();
-      const effectSubscription = effectFn(action$, readSelector).subscribe(
-        dispatch
-      );
+      const effectSubscription = merge(
+        ...epics.map(epic => epic(action$, readSelector))
+      ).subscribe(dispatch);
       const runEffect = (action: Action) => {
         action$.next(action);
       };
@@ -66,6 +71,7 @@ export function createStore<T>(
         disconnect
       };
     },
+    addEpic: epic => epics.push(epic),
     reducerFn
   };
 
