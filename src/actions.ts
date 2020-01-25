@@ -1,7 +1,6 @@
-import { ArgumentTypes } from "./lib";
+import { filter } from "rxjs/operators";
 import { useReactObservable } from "./context";
-import { useEffect } from "react";
-import { filter, take } from "rxjs/operators";
+import { ArgumentTypes } from "./lib";
 
 export interface Action {
   type: symbol;
@@ -57,44 +56,62 @@ export const filterAction = <A extends Action>(
   actionCreator: ActionCreator<any, A>
 ) => filter(actionCreator.isCreatorOf);
 
-export const useDispatchedAction = <TAction extends Action>(
-  actionCreator: ActionCreator<any, TAction>,
-  handler?: (action: TAction) => void
-): (() => Promise<TAction>) => {
-  const { action$ } = useReactObservable();
-
-  useEffect(() => {
-    if (!handler) return;
-
-    const subscription = action$
-      .pipe(filterAction(actionCreator))
-      .subscribe(handler);
-    return () => subscription.unsubscribe();
-  }, [actionCreator, handler]);
-
-  return () => action$.pipe(take(1), filterAction(actionCreator)).toPromise();
-};
-
 interface Case {
-  actionCreator: ActionCreator<any, any>;
+  condition: (action: Action) => boolean;
   resultFn: (action: any) => any;
+}
+interface TypeCase<T> {
+  <A extends Action>(
+    condition: ActionCreator<any, A> | ((action: Action) => boolean),
+    resultFn: (action: A) => T
+  ): Case;
+  <A1 extends Action, A2 extends Action>(
+    condition: [ActionCreator<any, A1>, ActionCreator<any, A2>],
+    resultFn: (action: A1 | A2) => T
+  ): Case;
+  <A1 extends Action, A2 extends Action, A3 extends Action>(
+    condition: [
+      ActionCreator<any, A1>,
+      ActionCreator<any, A2>,
+      ActionCreator<any, A3>
+    ],
+    resultFn: (action: A1 | A2 | A3) => T
+  ): Case;
+  <A1 extends Action, A2 extends Action, A3 extends Action, A4 extends Action>(
+    condition: [
+      ActionCreator<any, A1>,
+      ActionCreator<any, A2>,
+      ActionCreator<any, A3>,
+      ActionCreator<any, A4>
+    ],
+    resultFn: (action: A1 | A2 | A3 | A4) => T
+  ): Case;
 }
 export const switchAction = <T>(
   action: Action,
-  caseFn: (
-    typeCase: <A extends Action>(
-      actionCreator: ActionCreator<any, A>,
-      resultFn: (action: A) => T
-    ) => Case
-  ) => Array<Case>,
+  caseFn: (typeCase: TypeCase<T>) => Array<Case>,
   defaultValue: T
 ): T => {
-  const cases = caseFn((actionCreator, resultFn) => ({
-    actionCreator,
-    resultFn
-  }));
-  const matchingCase = cases.find(
-    typeCase => typeCase.actionCreator.actionType === action.type
+  const cases = caseFn(
+    (
+      condition:
+        | ActionCreator<any, Action>
+        | Array<ActionCreator<any, Action>>
+        | ((action: Action) => boolean),
+      resultFn: (action: Action) => T
+    ): Case => ({
+      condition: action => {
+        if (Array.isArray(condition)) {
+          return condition.some(creator => creator.actionType === action.type);
+        }
+        if (!("actionType" in condition)) {
+          return condition(action);
+        }
+        return condition.actionType === action.type;
+      },
+      resultFn
+    })
   );
+  const matchingCase = cases.find(typeCase => typeCase.condition(action));
   return matchingCase ? matchingCase.resultFn(action) : defaultValue;
 };
