@@ -7,7 +7,13 @@ export type BaseSelector<T> = Selector<T> & {
   store: Store;
 };
 
-export interface StoreRef {
+export type Reducer<T> = (
+  state: T,
+  action: Action,
+  readSelector: ReadSelectorFnType
+) => T;
+export interface StoreRef<T> {
+  appendReducer: (reducer: Reducer<T>) => void;
   updateState: (action: Action) => () => void;
   runEffect: (action: Action) => void;
   disconnect: () => void;
@@ -67,16 +73,12 @@ export type Epic = (
   }
 ) => Observable<Action>;
 
-export interface Store {
+export interface Store<T = any> {
   connect: (
     dispatch: (action: Action) => void,
     readSelector: ReadSelectorFnType
-  ) => StoreRef;
-  reducerFn: (
-    state: any,
-    action: Action,
-    readSelector: ReadSelectorFnType
-  ) => any;
+  ) => StoreRef<T>;
+  reducerFn: Reducer<T>
   addEpic: (epic: Epic) => void;
 }
 
@@ -87,8 +89,15 @@ export function createStore<T>(
   const stateSubject = new BehaviorSubject(initialState);
   const epics: Epic[] = [];
 
-  const store: Store = {
+  const store: Store<T> = {
     connect: (dispatch, readSelector) => {
+      const appendReducer = (newReducer: Reducer<T>) => {
+        const baseReducer = reducerFn;
+        reducerFn = (state, action, readSelector) => {
+          const baseState = baseReducer(state, action, readSelector);
+          return newReducer(baseState, action, readSelector);
+        }
+      }
       const updateState = (action: Action) => {
         const oldState = stateSubject.getValue();
         const newState = reducerFn(oldState, action, readSelector);
@@ -121,6 +130,7 @@ export function createStore<T>(
       dispatch(storeConnected(store));
 
       return {
+        appendReducer,
         updateState,
         runEffect,
         disconnect
@@ -134,7 +144,7 @@ export function createStore<T>(
     store
   });
 
-  return [stateSelector, store] as [typeof stateSelector, Store];
+  return [stateSelector, store] as [typeof stateSelector, Store<T>];
 }
 
 export function createStatelessStore() {
