@@ -63,6 +63,24 @@ export function createSelector<T>(
   };
 }
 
+export function combineSelectors<T>(
+  selectors: { [K in keyof T]: Selector<T[K]> }
+): Selector<T>;
+export function combineSelectors<P, T>(
+  selectors: { [K in keyof T]: ParametricSelector<P, T[K]> }
+): ParametricSelector<P, T>;
+export function combineSelectors<T>(
+  selectors: { [K in keyof T]: Selector<T[K]> | ParametricSelector<any, T[K]> }
+): Selector<T> | ParametricSelector<any, T> {
+  const keys = Object.keys(selectors);
+
+  return createSelector(Object.values(selectors) as any, (...values: any[]) => {
+    const ret: any = {};
+    values.forEach((value, i) => (ret[keys[i]] = value));
+    return ret;
+  });
+}
+
 export function createPropSelector<TProps, TRet>(
   propFn: (props: TProps) => TRet
 ): ParametricSelector<TProps, TRet> {
@@ -89,8 +107,8 @@ export function createTypedPropSelector<K extends string>(
 export function mapSelectorProps<PSelector, PMap, T>(
   selector: ParametricSelector<PSelector, T>,
   mapFn: (props: PMap) => PSelector
-): ParametricSelector<PMap, T> {
-  return ({
+): PMap extends {} ? ParametricSelector<PMap, T> : Selector<T> {
+  const parametricSelector: ParametricSelector<PMap, T> = ({
     prop$,
     readSelector = defaultReadSelector
   }: {
@@ -103,6 +121,7 @@ export function mapSelectorProps<PSelector, PMap, T>(
       }),
       readSelector
     });
+  return parametricSelector as any;
 }
 
 // TODO parametric selector
