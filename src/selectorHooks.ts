@@ -3,7 +3,7 @@ import { Action, createActionCreator } from "./actions";
 import { useReactObservable } from "./context";
 import { ImmediateObservable, usePropsObservable } from "./lib";
 import { ParametricSelector, ReadSelectorFnType, Selector } from "./selectors";
-import { BaseSelector, Store } from "./store";
+import { BaseSelector, Store, ReadSelectorValue } from "./store";
 
 export function useSelector<T>(
   selector: Selector<T> | ParametricSelector<undefined | {}, T>
@@ -69,6 +69,10 @@ export function useBranchingStateSelector<P, T>(
     }
     return baseStream;
   };
+  const readSelectorValue: ReadSelectorValue = (
+    selector: Selector<any> | ParametricSelector<any, any>,
+    prop$?: ImmediateObservable<any>
+  ) => readSelector(selector, prop$!).getValue();
 
   const [reactState, reactDispatch] = useReducer(
     (state: Map<Store, any>, action: Action) => {
@@ -81,7 +85,7 @@ export function useBranchingStateSelector<P, T>(
       }
       for (let store of state.keys()) {
         const subState = state.get(store);
-        const newSubState = store.reducerFn(subState, action, readSelector);
+        const newSubState = store.reducerFn(subState, action, readSelectorValue);
         hasChanged = hasChanged || subState !== newSubState;
         newState.set(store, newSubState);
       }
@@ -95,7 +99,7 @@ export function useBranchingStateSelector<P, T>(
     return () => subscription.unsubscribe();
   }, [action$]);
 
-  return readSelector(selector, prop$).getValue();
+  return readSelectorValue(selector, prop$);
 }
 
 const registerLocalStore = createActionCreator(

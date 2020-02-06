@@ -1,16 +1,21 @@
 import { BehaviorSubject, merge, Observable, Subject, zip } from "rxjs";
 import { first, map, switchMap } from "rxjs/operators";
 import { Action, createActionCreator } from "./actions";
-import { ReadSelectorFnType, Selector } from "./selectors";
+import { ReadSelectorFnType, Selector, ParametricSelector } from "./selectors";
+import { ImmediateObservable } from "./lib";
 
 export type BaseSelector<T> = Selector<T> & {
   store: Store;
 };
 
+export interface ReadSelectorValue {
+  <T>(selector: Selector<T>): T;
+  <P, T>(selector: ParametricSelector<P, T>, prop$: ImmediateObservable<P>): T;
+}
 export type Reducer<T> = (
   state: T,
   action: Action,
-  readSelector: ReadSelectorFnType
+  readSelectorValue: ReadSelectorValue
 ) => T;
 export interface StoreRef<T> {
   appendReducer: (reducer: Reducer<T>) => void;
@@ -78,7 +83,7 @@ export interface Store<T = any> {
     dispatch: (action: Action) => void,
     readSelector: ReadSelectorFnType
   ) => StoreRef<T>;
-  reducerFn: Reducer<T>
+  reducerFn: Reducer<T>;
   addEpic: (epic: Epic) => void;
 }
 
@@ -91,16 +96,21 @@ export function createStore<T>(
 
   const store: Store<T> = {
     connect: (dispatch, readSelector) => {
+      const readSelectorValue: ReadSelectorValue = (
+        selector: Selector<any> | ParametricSelector<any, any>,
+        prop$?: ImmediateObservable<any>
+      ) => readSelector(selector, prop$!).getValue();
+
       const appendReducer = (newReducer: Reducer<T>) => {
         const baseReducer = reducerFn;
         reducerFn = (state, action, readSelector) => {
           const baseState = baseReducer(state, action, readSelector);
           return newReducer(baseState, action, readSelector);
-        }
-      }
+        };
+      };
       const updateState = (action: Action) => {
         const oldState = stateSubject.getValue();
-        const newState = reducerFn(oldState, action, readSelector);
+        const newState = reducerFn(oldState, action, readSelectorValue);
         return () => {
           if (oldState !== newState) {
             stateSubject.next(newState);
